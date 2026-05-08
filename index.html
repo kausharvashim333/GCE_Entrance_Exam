@@ -123,6 +123,9 @@
       principalName: "Principal",
       signatureUrl: "",
       resultInstructions: "This result is system-generated and valid without signature. For any discrepancies, contact the administration within 7 days.",
+      loginSubtitle: "Genius Computer Education",
+      loginHeading: "Entrance Exam Portal",
+      loginTagline: "Admin & Student secure login",
     };
 
     const defaultCourseMappings = [
@@ -359,9 +362,9 @@
           <div className="glass p-8 rounded-3xl shadow-2xl max-w-md w-full space-y-6 border border-slate-200">
             <div className="text-center space-y-3">
               {branding.logoUrl && <img src={branding.logoUrl} alt="Logo" className="h-20 w-auto mx-auto object-contain" />}
-              <p className="text-sm text-blue-600 font-semibold tracking-widest uppercase">Genius Computer Education</p>
-              <h1 className="text-3xl font-bold text-slate-800">Entrance Exam Portal</h1>
-              <p className="text-slate-500">Admin & Student secure login</p>
+              <p className="text-sm text-blue-600 font-semibold tracking-widest uppercase">{branding.loginSubtitle || "Genius Computer Education"}</p>
+              <h1 className="text-3xl font-bold text-slate-800">{branding.loginHeading || "Entrance Exam Portal"}</h1>
+              <p className="text-slate-500">{branding.loginTagline || "Admin & Student secure login"}</p>
             </div>
 
             <div className="grid grid-cols-2 bg-slate-100 rounded-xl p-1">
@@ -2123,6 +2126,9 @@
             principalName: form.principalName,
             certificateFooter: form.certificateFooter,
             resultInstructions: form.resultInstructions,
+            loginSubtitle: form.loginSubtitle,
+            loginHeading: form.loginHeading,
+            loginTagline: form.loginTagline,
           });
           showNotification("Settings saved successfully!", "success");
         } catch (err) {
@@ -2294,6 +2300,25 @@
                 className="w-full px-4 py-3 min-h-[100px] focus:outline-none"
                 dangerouslySetInnerHTML={{ __html: form.resultInstructions || "" }}
               ></div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 space-y-4">
+            <h3 className="text-lg font-semibold">Login Page Customization</h3>
+            <p className="text-sm text-slate-500">Customize the text displayed on the login page.</p>
+            <div className="grid md:grid-cols-3 gap-4">
+              <div>
+                <label className="text-xs uppercase tracking-wide text-slate-500">Institute Subtitle</label>
+                <input className="w-full mt-1 px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500" placeholder="Genius Computer Education" value={form.loginSubtitle || ""} onChange={(e) => setForm({ ...form, loginSubtitle: e.target.value })} />
+              </div>
+              <div>
+                <label className="text-xs uppercase tracking-wide text-slate-500">Main Heading</label>
+                <input className="w-full mt-1 px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500" placeholder="Entrance Exam Portal" value={form.loginHeading || ""} onChange={(e) => setForm({ ...form, loginHeading: e.target.value })} />
+              </div>
+              <div>
+                <label className="text-xs uppercase tracking-wide text-slate-500">Tagline</label>
+                <input className="w-full mt-1 px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500" placeholder="Admin & Student secure login" value={form.loginTagline || ""} onChange={(e) => setForm({ ...form, loginTagline: e.target.value })} />
+              </div>
             </div>
           </div>
 

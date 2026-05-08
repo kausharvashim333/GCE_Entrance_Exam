@@ -44,6 +44,9 @@ exports.updateBranding = async (req, res) => {
       "principalName",
       "signatureUrl",
       "resultInstructions",
+      "loginSubtitle",
+      "loginHeading",
+      "loginTagline",
     ];
 
     const update = allowedFields.reduce((acc, key) => {

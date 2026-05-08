@@ -18,6 +18,9 @@ const brandingSchema = new mongoose.Schema(
       default:
         "This result is system-generated and valid without signature. For any discrepancies, contact the administration within 7 days.",
     },
+    loginSubtitle: { type: String, default: "Genius Computer Education" },
+    loginHeading: { type: String, default: "Entrance Exam Portal" },
+    loginTagline: { type: String, default: "Admin & Student secure login" },
   },
   { timestamps: true }
 );
