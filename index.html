@@ -2144,7 +2144,9 @@
           await updateBranding({ logoUrl: base64 });
           showNotification("Logo updated successfully!", "success");
         } catch (err) {
-          alert("Unable to process logo");
+          console.error("Logo upload error:", err);
+          const msg = err.response?.data?.message || err.message || "Unable to process logo";
+          alert(msg);
         } finally {
           setUploading(false);
           input.value = "";
@@ -2165,7 +2167,9 @@
           await updateBranding({ signatureUrl: base64 });
           showNotification("Signature updated successfully!", "success");
         } catch (err) {
-          alert("Unable to process signature");
+          console.error("Signature upload error:", err);
+          const msg = err.response?.data?.message || err.message || "Unable to process signature";
+          alert(msg);
         } finally {
           setUploading(false);
           input.value = "";
