@@ -849,6 +849,7 @@
       const [bulkLoading, setBulkLoading] = useState(false);
       const [bulkError, setBulkError] = useState("");
       const [bulkPreview, setBulkPreview] = useState([]);
+      const [selectedQuestions, setSelectedQuestions] = useState([]);
 
       const fetchQuestions = useCallback(() => {
         api.get("/questions").then((res) => setQuestions(res.data.questions));
@@ -922,6 +923,23 @@
         }
       };
 
+      const handleBulkDelete = async () => {
+        if (selectedQuestions.length === 0) {
+          showNotification("Please select at least one question to delete", "error");
+          return;
+        }
+        if (!confirm(`Are you sure you want to delete ${selectedQuestions.length} question(s)?`)) return;
+
+        try {
+          await Promise.all(selectedQuestions.map(id => api.delete(`/questions/${id}`)));
+          setSelectedQuestions([]);
+          fetchQuestions();
+          showNotification(`${selectedQuestions.length} question(s) deleted successfully!`, "success");
+        } catch (err) {
+          showNotification("Failed to delete questions", "error");
+        }
+      };
+
       return (
         <div className="space-y-6">
           <div className="flex items-center justify-between flex-wrap gap-3">
@@ -930,6 +948,14 @@
               <p className="text-slate-500">Manage subjects, difficulty and explanations.</p>
             </div>
             <div className="flex gap-2">
+              {selectedQuestions.length > 0 && (
+                <button
+                  className="px-4 py-2 rounded-xl bg-red-600 text-white font-semibold shadow hover:bg-red-700"
+                  onClick={handleBulkDelete}
+                >
+                  Delete Selected ({selectedQuestions.length})
+                </button>
+              )}
               <button
                 className="px-4 py-2 rounded-xl bg-green-600 text-white font-semibold shadow hover:bg-green-700"
                 onClick={() => { setBulkData(""); setBulkError(""); setBulkPreview([]); setShowBulkUpload(true); }}
@@ -949,6 +975,20 @@
                 <table className="w-full text-left">
                   <thead className="bg-slate-100 text-xs uppercase tracking-wide text-slate-600">
                     <tr>
+                      <th className="px-4 py-3 w-10">
+                        <input
+                          type="checkbox"
+                          checked={selectedQuestions.length === questions.length && questions.length > 0}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedQuestions(questions.map(q => q._id));
+                            } else {
+                              setSelectedQuestions([]);
+                            }
+                          }}
+                          className="w-4 h-4 rounded"
+                        />
+                      </th>
                       <th className="px-4 py-3">S.No</th>
                       <th className="px-4 py-3">Subject</th>
                       <th className="px-4 py-3">Topic</th>
@@ -961,6 +1001,20 @@
                   <tbody className="text-sm">
                     {questions.map((q, index) => (
                       <tr key={q._id} className="border-t border-slate-100 hover:bg-slate-50">
+                        <td className="px-4 py-3">
+                          <input
+                            type="checkbox"
+                            checked={selectedQuestions.includes(q._id)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedQuestions([...selectedQuestions, q._id]);
+                              } else {
+                                setSelectedQuestions(selectedQuestions.filter(id => id !== q._id));
+                              }
+                            }}
+                            className="w-4 h-4 rounded"
+                          />
+                        </td>
                         <td className="px-4 py-3 text-slate-700 font-semibold">{index + 1}</td>
                         <td className="px-4 py-3 text-slate-700">
                           <span className="px-2 py-1 rounded-lg bg-blue-50 text-blue-700 text-xs font-medium">{q.subject}</span>
@@ -997,7 +1051,7 @@
                     ))}
                     {questions.length === 0 && (
                       <tr>
-                        <td className="px-4 py-6 text-slate-500" colSpan="7">No questions found.</td>
+                        <td className="px-4 py-6 text-slate-500" colSpan="8">No questions found.</td>
                       </tr>
                     )}
                   </tbody>
