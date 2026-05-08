@@ -86,8 +86,9 @@ exports.getStudents = async (req, res) => {
 
 exports.createStudent = async (req, res) => {
   try {
-    const { name, email, mobile, studentId, password, batch, course } = req.body;
-    const existing = await Student.findOne({ $or: [{ studentId }, { email: email || undefined }] });
+    const { name, mobile, studentId, password, batch, course } = req.body;
+    const email = req.body.email?.trim() || undefined;
+    const existing = await Student.findOne({ $or: [{ studentId }, ...(email ? [{ email }] : [])] });
     if (existing) return res.status(400).json({ message: "Student ID or Email already exists" });
 
     const hash = await bcrypt.hash(password || studentId, 10);
@@ -101,7 +102,8 @@ exports.createStudent = async (req, res) => {
 
 exports.updateStudent = async (req, res) => {
   try {
-    const { name, email, mobile, batch, course, isActive, password } = req.body;
+    const { name, mobile, batch, course, isActive, password } = req.body;
+    const email = req.body.email?.trim() || undefined;
     const update = { name, email, mobile, batch, course, isActive };
     if (password) update.password = await bcrypt.hash(password, 10);
 
@@ -132,10 +134,11 @@ exports.bulkImportStudents = async (req, res) => {
 
     for (const s of students) {
       try {
-        const existing = await Student.findOne({ $or: [{ studentId: s.studentId }, { email: s.email || undefined }] });
+        const sEmail = s.email?.trim() || undefined;
+        const existing = await Student.findOne({ $or: [{ studentId: s.studentId }, ...(sEmail ? [{ email: sEmail }] : [])] });
         if (existing) { errors.push(`${s.studentId}: already exists`); continue; }
         const hash = await bcrypt.hash(s.password || s.studentId, 10);
-        const student = await Student.create({ ...s, password: hash });
+        const student = await Student.create({ ...s, email: sEmail, password: hash });
         created.push({ id: student._id, studentId: student.studentId, name: student.name });
       } catch (e) {
         errors.push(`${s.studentId}: ${e.message}`);
