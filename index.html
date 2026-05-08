@@ -1373,6 +1373,11 @@
         shuffleOptions: true,
         showResultImmediately: true,
         enableSecurity: true,
+        disableTabSwitch: true,
+        disableCopyPaste: true,
+        disableRightClick: true,
+        disableDevTools: true,
+        enforceFullscreen: true,
         status: "scheduled",
         selectedQuestions: [],
       };
@@ -1563,6 +1568,11 @@
                                   shuffleOptions: exam.shuffleOptions ?? true,
                                   showResultImmediately: exam.showResultImmediately ?? true,
                                   enableSecurity: exam.enableSecurity ?? true,
+                                  disableTabSwitch: exam.disableTabSwitch ?? true,
+                                  disableCopyPaste: exam.disableCopyPaste ?? true,
+                                  disableRightClick: exam.disableRightClick ?? true,
+                                  disableDevTools: exam.disableDevTools ?? true,
+                                  enforceFullscreen: exam.enforceFullscreen ?? true,
                                   status: exam.status ?? "scheduled",
                                   selectedQuestions: Array.isArray(exam.selectedQuestions) ? exam.selectedQuestions : [],
                                 });
@@ -1752,10 +1762,58 @@
                       <input type="checkbox" checked={examForm.shuffleOptions} onChange={(e) => setExamForm({ ...examForm, shuffleOptions: e.target.checked })} />
                       Shuffle options
                     </label>
-                    <label className="flex items-center gap-3 px-4 py-3 rounded-2xl border border-slate-200 md:col-span-2">
-                      <input type="checkbox" checked={examForm.enableSecurity} onChange={(e) => setExamForm({ ...examForm, enableSecurity: e.target.checked })} />
-                      Enable exam security (anti-copy, fullscreen, tab detection)
-                    </label>
+                                      </div>
+
+                  <div className="bg-slate-50 rounded-2xl p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h4 className="font-semibold text-slate-700 text-sm">Security Settings</h4>
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <span className="text-xs text-slate-500">All On/Off</span>
+                        <input type="checkbox" checked={examForm.enableSecurity} onChange={(e) => {
+                          const val = e.target.checked;
+                          setExamForm({ ...examForm, enableSecurity: val, disableTabSwitch: val, disableCopyPaste: val, disableRightClick: val, disableDevTools: val, enforceFullscreen: val });
+                        }} />
+                      </label>
+                    </div>
+                    {examForm.enableSecurity && (
+                      <div className="grid md:grid-cols-2 gap-3">
+                        <label className="flex items-center gap-3 px-3 py-2.5 rounded-xl border border-slate-200 bg-white cursor-pointer">
+                          <input type="checkbox" checked={examForm.disableTabSwitch} onChange={(e) => setExamForm({ ...examForm, disableTabSwitch: e.target.checked })} />
+                          <div>
+                            <p className="text-sm font-semibold text-slate-700">Tab Switch Detection</p>
+                            <p className="text-xs text-slate-500">Auto-submit on tab switch</p>
+                          </div>
+                        </label>
+                        <label className="flex items-center gap-3 px-3 py-2.5 rounded-xl border border-slate-200 bg-white cursor-pointer">
+                          <input type="checkbox" checked={examForm.disableCopyPaste} onChange={(e) => setExamForm({ ...examForm, disableCopyPaste: e.target.checked })} />
+                          <div>
+                            <p className="text-sm font-semibold text-slate-700">Block Copy/Paste</p>
+                            <p className="text-xs text-slate-500">Prevent copy and paste</p>
+                          </div>
+                        </label>
+                        <label className="flex items-center gap-3 px-3 py-2.5 rounded-xl border border-slate-200 bg-white cursor-pointer">
+                          <input type="checkbox" checked={examForm.disableRightClick} onChange={(e) => setExamForm({ ...examForm, disableRightClick: e.target.checked })} />
+                          <div>
+                            <p className="text-sm font-semibold text-slate-700">Block Right Click</p>
+                            <p className="text-xs text-slate-500">Disable context menu</p>
+                          </div>
+                        </label>
+                        <label className="flex items-center gap-3 px-3 py-2.5 rounded-xl border border-slate-200 bg-white cursor-pointer">
+                          <input type="checkbox" checked={examForm.disableDevTools} onChange={(e) => setExamForm({ ...examForm, disableDevTools: e.target.checked })} />
+                          <div>
+                            <p className="text-sm font-semibold text-slate-700">Block DevTools</p>
+                            <p className="text-xs text-slate-500">Block F12 and shortcuts</p>
+                          </div>
+                        </label>
+                        <label className="flex items-center gap-3 px-3 py-2.5 rounded-xl border border-slate-200 bg-white cursor-pointer md:col-span-2">
+                          <input type="checkbox" checked={examForm.enforceFullscreen} onChange={(e) => setExamForm({ ...examForm, enforceFullscreen: e.target.checked })} />
+                          <div>
+                            <p className="text-sm font-semibold text-slate-700">Enforce Fullscreen</p>
+                            <p className="text-xs text-slate-500">Fullscreen on start, auto-submit on exit</p>
+                          </div>
+                        </label>
+                      </div>
+                    )}
                   </div>
 
                   <div className="flex justify-end gap-3 pt-2">
@@ -2764,6 +2822,9 @@
       useEffect(() => {
         if (!exam || showInstructions || exam.enableSecurity === false || showResult) return;
 
+        const anySecurityOn = exam.disableTabSwitch !== false || exam.disableCopyPaste !== false || exam.disableRightClick !== false || exam.disableDevTools !== false || exam.enforceFullscreen !== false;
+        if (!anySecurityOn) return;
+
         const registerViolation = (message) => {
           setTabSwitchCount((prev) => {
             const next = prev + 1;
@@ -2778,44 +2839,52 @@
         };
 
         const handleVisibilityChange = () => {
-          if (document.hidden) {
-            registerViolation("Multiple tab switches detected. Exam will be submitted automatically.");
+          if (document.hidden && exam.disableTabSwitch !== false) {
+            registerViolation("Tab switch detected. Exam will be submitted automatically.");
           }
         };
 
         const handleCopyPaste = (e) => {
-          e.preventDefault();
-          alert("Copy-paste is disabled during exam");
+          if (exam.disableCopyPaste !== false) {
+            e.preventDefault();
+            alert("Copy-paste is disabled during exam");
+          }
         };
 
         const handleContextMenu = (e) => {
-          e.preventDefault();
+          if (exam.disableRightClick !== false) {
+            e.preventDefault();
+          }
         };
 
         const handleDevTools = (e) => {
-          const key = (e.key || "").toLowerCase();
-          const openDevToolsShortcut =
-            key === "f12" ||
-            (e.ctrlKey && e.shiftKey && ["i", "c", "j"].includes(key)) ||
-            (e.metaKey && e.altKey && key === "i");
-          if (openDevToolsShortcut) {
-            e.preventDefault();
-            alert("Developer tools are disabled during exam");
+          if (exam.disableDevTools !== false) {
+            const key = (e.key || "").toLowerCase();
+            const openDevToolsShortcut =
+              key === "f12" ||
+              (e.ctrlKey && e.shiftKey && ["i", "c", "j"].includes(key)) ||
+              (e.metaKey && e.altKey && key === "i");
+            if (openDevToolsShortcut) {
+              e.preventDefault();
+              alert("Developer tools are disabled during exam");
+            }
           }
         };
 
         const handleFullscreenChange = () => {
-          if (!document.fullscreenElement) {
-            registerViolation("Fullscreen exit detected. Exam will be submitted after repeated violations.");
+          if (exam.enforceFullscreen !== false && !document.fullscreenElement) {
+            registerViolation("Fullscreen exit detected. Exam will be submitted automatically.");
           }
         };
 
-        document.addEventListener('visibilitychange', handleVisibilityChange);
-        document.addEventListener('copy', handleCopyPaste);
-        document.addEventListener('paste', handleCopyPaste);
-        document.addEventListener('contextmenu', handleContextMenu);
-        document.addEventListener('keydown', handleDevTools);
-        document.addEventListener('fullscreenchange', handleFullscreenChange);
+        if (exam.disableTabSwitch !== false) document.addEventListener('visibilitychange', handleVisibilityChange);
+        if (exam.disableCopyPaste !== false) {
+          document.addEventListener('copy', handleCopyPaste);
+          document.addEventListener('paste', handleCopyPaste);
+        }
+        if (exam.disableRightClick !== false) document.addEventListener('contextmenu', handleContextMenu);
+        if (exam.disableDevTools !== false) document.addEventListener('keydown', handleDevTools);
+        if (exam.enforceFullscreen !== false) document.addEventListener('fullscreenchange', handleFullscreenChange);
 
         return () => {
           document.removeEventListener('visibilitychange', handleVisibilityChange);
@@ -2830,7 +2899,7 @@
       const handleStartExam = () => {
         setShowInstructions(false);
         setInstructionsAccepted(true);
-        if (exam.enableSecurity !== false) {
+        if (exam.enableSecurity !== false && exam.enforceFullscreen !== false) {
           try {
             document.documentElement.requestFullscreen().catch(() => {
               console.log("Fullscreen not supported or denied");

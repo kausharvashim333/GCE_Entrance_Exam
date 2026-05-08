@@ -156,6 +156,11 @@ exports.startExam = async (req, res) => {
       marksPerQuestion: exam.marksPerQuestion,
       negativeMarking: exam.negativeMarking,
       enableSecurity: exam.enableSecurity !== false,
+      disableTabSwitch: exam.disableTabSwitch !== false,
+      disableCopyPaste: exam.disableCopyPaste !== false,
+      disableRightClick: exam.disableRightClick !== false,
+      disableDevTools: exam.disableDevTools !== false,
+      enforceFullscreen: exam.enforceFullscreen !== false,
       showResultImmediately: exam.showResultImmediately !== false,
       questions: result.answers.map((answer) => {
         const q = questionMap[answer.questionId.toString()];
