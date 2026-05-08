@@ -843,6 +843,11 @@
       const [questionForm, setQuestionForm] = useState(initialQuestion);
       const [submitting, setSubmitting] = useState(false);
       const [error, setError] = useState("");
+      const [showBulkUpload, setShowBulkUpload] = useState(false);
+      const [bulkData, setBulkData] = useState("");
+      const [bulkLoading, setBulkLoading] = useState(false);
+      const [bulkError, setBulkError] = useState("");
+      const [bulkPreview, setBulkPreview] = useState([]);
 
       const fetchQuestions = useCallback(() => {
         api.get("/questions").then((res) => setQuestions(res.data.questions));
@@ -923,12 +928,20 @@
               <h1 className="text-2xl font-bold text-slate-800">Question Bank</h1>
               <p className="text-slate-500">Manage subjects, difficulty and explanations.</p>
             </div>
-            <button
-              className="px-4 py-2 rounded-xl bg-blue-600 text-white font-semibold shadow hover:bg-blue-700"
-              onClick={() => { setQuestionForm(initialQuestion); setEditingId(null); setShowForm(true); }}
-            >
-              + Add Question
-            </button>
+            <div className="flex gap-2">
+              <button
+                className="px-4 py-2 rounded-xl bg-green-600 text-white font-semibold shadow hover:bg-green-700"
+                onClick={() => { setBulkData(""); setBulkError(""); setBulkPreview([]); setShowBulkUpload(true); }}
+              >
+                📋 Bulk Upload
+              </button>
+              <button
+                className="px-4 py-2 rounded-xl bg-blue-600 text-white font-semibold shadow hover:bg-blue-700"
+                onClick={() => { setQuestionForm(initialQuestion); setEditingId(null); setShowForm(true); }}
+              >
+                + Add Question
+              </button>
+            </div>
           </div>
 
           <div className="table-scroll border border-slate-200 rounded-2xl bg-white shadow-sm max-h-[calc(100vh-320px)] overflow-y-auto">
@@ -1168,6 +1181,167 @@
                 <div className="flex justify-end gap-3 pt-2">
                   <button className="px-4 py-2 rounded-xl border border-slate-200 text-slate-600" onClick={() => setDeleteId(null)}>Cancel</button>
                   <button className="px-4 py-2 rounded-xl bg-red-600 text-white font-semibold" onClick={handleDeleteQuestion}>Delete</button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {showBulkUpload && (
+            <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-50">
+              <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto p-6 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-xl font-semibold text-slate-800">Bulk Upload Questions</h3>
+                    <p className="text-slate-500 text-sm">Paste tab-separated (TSV) or comma-separated (CSV) data below.</p>
+                  </div>
+                  <button className="text-slate-400 hover:text-slate-600 text-xl" onClick={() => setShowBulkUpload(false)}>✕</button>
+                </div>
+
+                <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+                  <h4 className="font-semibold text-amber-800 mb-2">📌 Format (Tab or Comma separated)</h4>
+                  <p className="text-sm text-amber-700 mb-2">Columns: <code className="bg-amber-100 px-1 rounded">subject | topic | question | option1 | option2 | option3 | option4 | correctAnswer(0-3) | difficulty | marks | explanation</code></p>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs border border-amber-300 rounded-lg overflow-hidden">
+                      <thead className="bg-amber-100">
+                        <tr>
+                          <th className="px-2 py-1 border border-amber-300">subject</th>
+                          <th className="px-2 py-1 border border-amber-300">topic</th>
+                          <th className="px-2 py-1 border border-amber-300">question</th>
+                          <th className="px-2 py-1 border border-amber-300">option1</th>
+                          <th className="px-2 py-1 border border-amber-300">option2</th>
+                          <th className="px-2 py-1 border border-amber-300">option3</th>
+                          <th className="px-2 py-1 border border-amber-300">option4</th>
+                          <th className="px-2 py-1 border border-amber-300">correct(0-3)</th>
+                          <th className="px-2 py-1 border border-amber-300">difficulty</th>
+                          <th className="px-2 py-1 border border-amber-300">marks</th>
+                          <th className="px-2 py-1 border border-amber-300">explanation</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr className="bg-white">
+                          <td className="px-2 py-1 border border-amber-200">Math</td>
+                          <td className="px-2 py-1 border border-amber-200">Algebra</td>
+                          <td className="px-2 py-1 border border-amber-200">What is 2+2?</td>
+                          <td className="px-2 py-1 border border-amber-200">3</td>
+                          <td className="px-2 py-1 border border-amber-200">4</td>
+                          <td className="px-2 py-1 border border-amber-200">5</td>
+                          <td className="px-2 py-1 border border-amber-200">6</td>
+                          <td className="px-2 py-1 border border-amber-200">1</td>
+                          <td className="px-2 py-1 border border-amber-200">easy</td>
+                          <td className="px-2 py-1 border border-amber-200">1</td>
+                          <td className="px-2 py-1 border border-amber-200">Basic addition</td>
+                        </tr>
+                        <tr className="bg-white">
+                          <td className="px-2 py-1 border border-amber-200">Science</td>
+                          <td className="px-2 py-1 border border-amber-200">Physics</td>
+                          <td className="px-2 py-1 border border-amber-200">Unit of force?</td>
+                          <td className="px-2 py-1 border border-amber-200">Watt</td>
+                          <td className="px-2 py-1 border border-amber-200">Newton</td>
+                          <td className="px-2 py-1 border border-amber-200">Joule</td>
+                          <td className="px-2 py-1 border border-amber-200">Pascal</td>
+                          <td className="px-2 py-1 border border-amber-200">1</td>
+                          <td className="px-2 py-1 border border-amber-200">medium</td>
+                          <td className="px-2 py-1 border border-amber-200">1</td>
+                          <td className="px-2 py-1 border border-amber-200">SI unit</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {bulkError && <div className="text-red-600 text-sm bg-red-50 px-3 py-2 rounded-xl">{bulkError}</div>}
+
+                <div>
+                  <label className="text-xs uppercase tracking-wide text-slate-500">Paste Data Here</label>
+                  <textarea
+                    value={bulkData}
+                    onChange={(e) => {
+                      setBulkData(e.target.value);
+                      setBulkError("");
+                      const lines = e.target.value.split("\n").filter(l => l.trim());
+                      if (lines.length > 0) {
+                        const preview = lines.slice(0, 5).map(l => {
+                          const sep = l.includes("\t") ? "\t" : ",";
+                          return l.split(sep).map(c => c.trim());
+                        });
+                        setBulkPreview(preview);
+                      } else {
+                        setBulkPreview([]);
+                      }
+                    }}
+                    className="w-full mt-1 px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 font-mono text-sm"
+                    rows="8"
+                    placeholder={"Math\tAlgebra\tWhat is 2+2?\t3\t4\t5\t6\t1\teasy\t1\tBasic addition\nScience\tPhysics\tUnit of force?\tWatt\tNewton\tJoule\tPascal\t1\tmedium\t1\tSI unit"}
+                  ></textarea>
+                </div>
+
+                {bulkPreview.length > 0 && (
+                  <div>
+                    <h4 className="font-semibold text-slate-700 mb-2">Preview (first {Math.min(bulkPreview.length, 5)} rows)</h4>
+                    <div className="overflow-x-auto border border-slate-200 rounded-xl">
+                      <table className="w-full text-xs">
+                        <thead className="bg-slate-100">
+                          <tr>
+                            {bulkPreview[0].map((col, i) => (
+                              <th key={i} className="px-2 py-1 border border-slate-200 text-left">{["Subject","Topic","Question","Opt1","Opt2","Opt3","Opt4","Correct","Difficulty","Marks","Explanation"][i] || col}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {bulkPreview.map((row, ri) => (
+                            <tr key={ri} className={ri % 2 === 0 ? "bg-white" : "bg-slate-50"}>
+                              {row.map((cell, ci) => (
+                                <td key={ci} className="px-2 py-1 border border-slate-200 max-w-[150px] truncate">{cell}</td>
+                              ))}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex justify-end gap-3 pt-2">
+                  <button className="px-4 py-2 rounded-xl border border-slate-200 text-slate-600" onClick={() => setShowBulkUpload(false)}>Cancel</button>
+                  <button
+                    disabled={bulkLoading || !bulkData.trim()}
+                    className="px-4 py-2 rounded-xl bg-green-600 text-white font-semibold disabled:opacity-60"
+                    onClick={async () => {
+                      if (!bulkData.trim()) return;
+                      setBulkLoading(true);
+                      setBulkError("");
+                      try {
+                        const lines = bulkData.split("\n").filter(l => l.trim());
+                        const questions = lines.map(line => {
+                          const sep = line.includes("\t") ? "\t" : ",";
+                          const cols = line.split(sep).map(c => c.trim());
+                          if (cols.length < 8) throw new Error("Each row needs at least 8 columns: subject, topic, question, 4 options, correctAnswer");
+                          return {
+                            subject: cols[0],
+                            topic: cols[1] || "",
+                            question: cols[2],
+                            options: [cols[3], cols[4], cols[5], cols[6]],
+                            correctAnswer: Number(cols[7]) || 0,
+                            difficulty: ["easy","medium","hard"].includes(cols[8]) ? cols[8] : "medium",
+                            marks: Number(cols[9]) || 1,
+                            explanation: cols[10] || "",
+                          };
+                        });
+                        const res = await api.post("/questions/bulk", { questions });
+                        showNotification(`${res.data.created} questions imported successfully!`, "success");
+                        setShowBulkUpload(false);
+                        setBulkData("");
+                        setBulkPreview([]);
+                        fetchQuestions();
+                      } catch (err) {
+                        setBulkError(err.response?.data?.message || err.message || "Failed to import questions");
+                      } finally {
+                        setBulkLoading(false);
+                      }
+                    }}
+                  >
+                    {bulkLoading ? "Importing..." : `Import Questions`}
+                  </button>
                 </div>
               </div>
             </div>
