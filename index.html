@@ -1446,6 +1446,16 @@
         }
       };
 
+      const handleToggleSecurity = async (examId, currentSecurity) => {
+        try {
+          await api.put(`/exams/${examId}`, { enableSecurity: !currentSecurity });
+          fetchExams();
+          showNotification(`Exam security ${currentSecurity ? "disabled" : "enabled"} successfully`, "success");
+        } catch (err) {
+          showNotification(err.response?.data?.message || "Security update failed", "error");
+        }
+      };
+
       return (
         <div className="space-y-6">
           <div className="flex items-center justify-between flex-wrap gap-3">
@@ -1470,6 +1480,7 @@
                       <th className="px-4 py-3">Questions</th>
                       <th className="px-4 py-3">Duration</th>
                       <th className="px-4 py-3">Marks</th>
+                      <th className="px-4 py-3">Security</th>
                       <th className="px-4 py-3">Status</th>
                       <th className="px-4 py-3">Exam Window</th>
                       <th className="px-4 py-3">Actions</th>
@@ -1488,6 +1499,16 @@
                             <div>Pass: {exam.passingMarks}</div>
                             <div>Negative: {exam.negativeMarking || 0}</div>
                           </div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <button
+                            className={`px-3 py-1 text-xs rounded-lg font-semibold border ${exam.enableSecurity === false
+                              ? "bg-slate-100 text-slate-600 border-slate-200"
+                              : "bg-emerald-100 text-emerald-700 border-emerald-200"}`}
+                            onClick={() => handleToggleSecurity(exam._id, exam.enableSecurity !== false)}
+                          >
+                            {exam.enableSecurity === false ? "Disabled" : "Enabled"}
+                          </button>
                         </td>
                         <td className="px-4 py-3">
                           <button
@@ -2606,6 +2627,8 @@
       const [idleTime, setIdleTime] = useState(0);
       const [showResult, setShowResult] = useState(false);
       const [resultData, setResultData] = useState(null);
+      const [isSubmitting, setIsSubmitting] = useState(false);
+      const isSubmittingRef = useRef(false);
       const navigate = useNavigate();
 
       useEffect(() => {
@@ -2691,34 +2714,99 @@
         */
       }, [showInstructions]);
 
+      const handleSubmit = async (forceSubmit = false) => {
+        if (isSubmittingRef.current || isSubmitting || showResult) return;
+        if (!exam?.resultId) {
+          alert("Exam session not found. Please start the exam again.");
+          navigate("/student");
+          return;
+        }
+
+        const answeredQuestions = Object.entries(answers).filter(([_, selectedOption]) => selectedOption !== null);
+        if (!forceSubmit && answeredQuestions.length === 0) {
+          const confirmSubmit = confirm("You haven't answered any questions. Are you sure you want to submit?");
+          if (!confirmSubmit) return;
+        }
+
+        const payload = {
+          resultId: exam.resultId,
+          answers: answeredQuestions.map(([questionId, selectedOption]) => ({ questionId, selectedOption })),
+          timeTakenMinutes: exam.durationMinutes - Math.floor(timeLeft / 60),
+        };
+
+        console.log("Submitting exam with payload:", payload);
+        isSubmittingRef.current = true;
+        setIsSubmitting(true);
+
+        try {
+          const res = await api.post("/exams/submit", payload);
+          console.log("Submission response:", res.data);
+          setResultData({
+            ...res.data,
+            showResultImmediately: res.data.showResultImmediately ?? exam.showResultImmediately !== false,
+          });
+          setShowResult(true);
+          setTimeout(() => {
+            localStorage.removeItem("token");
+            localStorage.removeItem("user");
+            delete api.defaults.headers.common["Authorization"];
+            window.location.hash = "#/login";
+            window.location.reload();
+          }, 5000);
+        } catch (err) {
+          console.error("Submission error:", err);
+          alert(err.response?.data?.message || "Submission failed");
+          isSubmittingRef.current = false;
+          setIsSubmitting(false);
+        }
+      };
+
       useEffect(() => {
-        const handleVisibilityChange = () => {
-          if (document.hidden && !showInstructions && exam.enableSecurity !== false) {
-            setTabSwitchCount((prev) => prev + 1);
+        if (!exam || showInstructions || exam.enableSecurity === false || showResult) return;
+
+        const registerViolation = (message) => {
+          setTabSwitchCount((prev) => {
+            const next = prev + 1;
             setShowWarning(true);
             setTimeout(() => setShowWarning(false), 3000);
+            if (next >= 1) {
+              alert(message || "Security violation detected. Exam will be submitted automatically.");
+              handleSubmit(true);
+            }
+            return next;
+          });
+        };
+
+        const handleVisibilityChange = () => {
+          if (document.hidden) {
+            registerViolation("Multiple tab switches detected. Exam will be submitted automatically.");
           }
         };
 
         const handleCopyPaste = (e) => {
-          if (!showInstructions && exam.enableSecurity !== false) {
-            e.preventDefault();
-            alert("Copy-paste is disabled during exam");
-          }
+          e.preventDefault();
+          alert("Copy-paste is disabled during exam");
         };
 
         const handleContextMenu = (e) => {
-          if (!showInstructions && exam.enableSecurity !== false) {
-            e.preventDefault();
-          }
+          e.preventDefault();
         };
 
         const handleDevTools = (e) => {
-          if (!showInstructions && exam.enableSecurity !== false) {
-            if (e.key === 'F12' || (e.ctrlKey && e.shiftKey && e.key === 'I') || (e.ctrlKey && e.shiftKey && e.key === 'C') || (e.ctrlKey && e.shiftKey && e.key === 'J')) {
-              e.preventDefault();
-              alert("Developer tools are disabled during exam");
-            }
+          const key = (e.key || "").toLowerCase();
+          const openDevToolsShortcut =
+            key === "f12" ||
+            (e.ctrlKey && e.shiftKey && ["i", "c", "j"].includes(key)) ||
+            (e.metaKey && e.altKey && key === "i");
+          if (openDevToolsShortcut) {
+            e.preventDefault();
+            alert("Developer tools are disabled during exam");
+          }
+        };
+
+        const handleFullscreenChange = () => {
+          if (!document.fullscreenElement) {
+            registerViolation("Fullscreen exit detected. Exam will be submitted after repeated violations.");
           }
         };
 
@@ -2727,6 +2815,7 @@
         document.addEventListener('paste', handleCopyPaste);
         document.addEventListener('contextmenu', handleContextMenu);
         document.addEventListener('keydown', handleDevTools);
+        document.addEventListener('fullscreenchange', handleFullscreenChange);
 
         return () => {
           document.removeEventListener('visibilitychange', handleVisibilityChange);
@@ -2734,8 +2823,9 @@
           document.removeEventListener('paste', handleCopyPaste);
           document.removeEventListener('contextmenu', handleContextMenu);
           document.removeEventListener('keydown', handleDevTools);
+          document.removeEventListener('fullscreenchange', handleFullscreenChange);
         };
-      }, [showInstructions, exam]);
+      }, [showInstructions, exam, showResult, isSubmitting, answers, timeLeft]);
 
       const handleStartExam = () => {
         setShowInstructions(false);
@@ -2809,6 +2899,7 @@
                       <li>Right-click is disabled during exam</li>
                       <li>Developer tools (F12) are disabled during exam</li>
                       <li>Fullscreen mode will be attempted on start</li>
+                      <li>Any single violation causes immediate auto-submit</li>
                       <li>Auto-submit when timer expires</li>
                     </ul>
                   ) : (
@@ -2843,49 +2934,6 @@
         );
       }
 
-      const handleSubmit = async () => {
-        if (!exam.resultId) {
-          alert("Exam session not found. Please start the exam again.");
-          navigate("/student");
-          return;
-        }
-
-        const answeredQuestions = Object.entries(answers).filter(([_, selectedOption]) => selectedOption !== null);
-        if (answeredQuestions.length === 0) {
-          const confirmSubmit = confirm("You haven't answered any questions. Are you sure you want to submit?");
-          if (!confirmSubmit) return;
-        }
-
-        const payload = {
-          resultId: exam.resultId,
-          answers: answeredQuestions.map(([questionId, selectedOption]) => ({ questionId, selectedOption })),
-          timeTakenMinutes: exam.durationMinutes - Math.floor(timeLeft / 60),
-        };
-        
-        console.log("Submitting exam with payload:", payload);
-        
-        try {
-          const res = await api.post("/exams/submit", payload);
-          console.log("Submission response:", res.data);
-          setResultData({
-            ...res.data,
-            showResultImmediately: res.data.showResultImmediately ?? exam.showResultImmediately !== false,
-          });
-          setShowResult(true);
-          // Auto logout after 5 seconds
-          setTimeout(() => {
-            localStorage.removeItem("token");
-            localStorage.removeItem("user");
-            delete api.defaults.headers.common["Authorization"];
-            window.location.hash = "#/login";
-            window.location.reload();
-          }, 5000);
-        } catch (err) {
-          console.error("Submission error:", err);
-          alert(err.response?.data?.message || "Submission failed");
-        }
-      };
-
       const handleResultClose = () => {
         setShowResult(false);
         localStorage.removeItem("token");
@@ -2916,8 +2964,8 @@
           {showWarning && (
             <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-red-700">
               <p className="font-semibold">⚠️ Warning: Tab switching detected!</p>
-              <p className="text-sm">Switching tabs is not allowed during exam. Multiple violations will result in automatic submission.</p>
-              <p className="text-sm mt-1">Violations: {tabSwitchCount}/3</p>
+              <p className="text-sm">Security is enabled for this exam. Any violation triggers immediate auto-submit.</p>
+              <p className="text-sm mt-1">Violations: {tabSwitchCount}</p>
             </div>
           )}
 
