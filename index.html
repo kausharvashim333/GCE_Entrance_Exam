@@ -1,0 +1,3037 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Genius Computer Education – Entrance Exam Portal</title>
+  <style>
+    body { background: #f1f5f9; font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    .glass { backdrop-filter: blur(16px); background: rgba(255,255,255,0.9); }
+    .table-scroll { max-height: 400px; overflow: auto; }
+  </style>
+  <script src="./vendor/tailwindcdn.js"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            primary: {
+              50: "#eff6ff",
+              100: "#dbeafe",
+              200: "#bfdbfe",
+              300: "#93c5fd",
+              400: "#60a5fa",
+              500: "#3b82f6",
+              600: "#2563eb",
+              700: "#1d4ed8",
+              800: "#1e40af",
+              900: "#1e3a8a",
+            },
+          },
+        },
+      },
+    };
+  </script>
+  <script src="./vendor/react.development.js"></script>
+  <script src="./vendor/react-dom.development.js"></script>
+  <script src="./vendor/remix-router.umd.min.js"></script>
+  <script src="./vendor/react-router.development.js"></script>
+  <script src="./vendor/react-router-dom.development.js"></script>
+  <script src="./vendor/axios.min.js"></script>
+  <script src="./vendor/babel.min.js"></script>
+  <script>
+    // Suppress source map 404 errors (harmless)
+    const originalError = console.error;
+    console.error = function(...args) {
+      if (typeof args[0] === 'string' && args[0].includes('Source Map loading errors')) return;
+      if (typeof args[0] === 'string' && args[0].includes('Failed to load resource') && args[0].includes('.map')) return;
+      originalError.apply(console, args);
+    };
+  </script>
+</head>
+<body>
+  <div id="root" class="min-h-screen">
+    <div style="display: flex; justify-content: center; align-items: center; height: 100vh;">
+      <div style="text-align: center;">
+        <p>Loading...</p>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    window.addEventListener('load', function() {
+      setTimeout(function() {
+        if (document.getElementById('root').innerHTML.includes('Loading...')) {
+          document.getElementById('root').innerHTML = '<div style="padding: 20px; color: red;"><h2>Application failed to load</h2><p>Please check browser console for errors</p></div>';
+        }
+      }, 5000);
+    });
+
+    window.addEventListener('error', function(e) {
+      console.error('Global error:', e.error);
+      document.getElementById('root').innerHTML = '<div style="padding: 20px; color: red;"><h2>Error loading application:</h2><p>' + (e.error?.message || 'Unknown error') + '</p></div>';
+    });
+    
+    window.addEventListener('unhandledrejection', function(e) {
+      console.error('Unhandled promise rejection:', e.reason);
+    });
+  </script>
+
+  <script type="text/babel" data-presets="react,env">
+    const { useState, useEffect, useCallback, createContext, useContext, useRef } = React;
+    const { HashRouter, Routes, Route, Navigate, Link, useNavigate, useLocation } = ReactRouterDOM;
+
+    const formatDate = (dateStr) => {
+        if (!dateStr) return "N/A";
+        const date = new Date(dateStr);
+        if (isNaN(date.getTime())) return "Invalid Date";
+        const day = String(date.getDate()).padStart(2, "0");
+        const month = date.toLocaleString("en-US", { month: "short" });
+        const year = date.getFullYear();
+        return `${day}-${month}-${year}`;
+      };
+
+    const sanitizeInput = (input) => {
+      if (typeof input !== "string") return input;
+      return input.replace(/<script[^>]*>.*?<\/script>/gi, "").trim();
+    };
+
+    const validateEmail = (email) => {
+      const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      return re.test(String(email).toLowerCase());
+    };
+
+    const validateRequired = (value, fieldName) => {
+      if (!value || (typeof value === "string" && !value.trim())) {
+        throw new Error(`${fieldName} is required`);
+      }
+    };
+
+    const api = axios.create({ baseURL: window.location.origin === "http://127.0.0.1:50026" || window.location.origin === "http://localhost:8080" ? "http://localhost:5001/api" : "/api" });
+
+    (() => {
+      const token = localStorage.getItem("token");
+      if (token) api.defaults.headers.common["Authorization"] = `Bearer ${token}`;
+    })();
+
+    const defaultBranding = {
+      instituteName: "Genius Computer Education",
+      address: "Opposite City Mall, Khargone",
+      certificateFooter:
+        "This certificate is awarded by Genius Computer Education to recognize the successful completion of the entrance examination.",
+      logoUrl: "",
+      principalName: "Principal",
+      signatureUrl: "",
+      resultInstructions: "This result is system-generated and valid without signature. For any discrepancies, contact the administration within 7 days.",
+    };
+
+    const defaultCourseMappings = [
+      { qualification: "10th", courses: ["DCA", "Tally", "Busy", "DTP"] },
+      { qualification: "12th", courses: ["DCA", "BCA", "Tally", "Busy", "DTP"] },
+      { qualification: "Graduate", courses: ["PGDCA", "Tally", "Busy", "DTP"] },
+      { qualification: "Post Graduate", courses: ["PGDCA", "Tally", "Busy"] },
+    ];
+
+    const getCourseMappings = () => {
+      try {
+        const saved = localStorage.getItem("courseMappings");
+        const parsed = saved ? JSON.parse(saved) : null;
+        return Array.isArray(parsed) ? parsed : defaultCourseMappings;
+      } catch {
+        return defaultCourseMappings;
+      }
+    };
+
+    const BrandingContext = createContext({ branding: defaultBranding, updateBranding: async () => {}, brandingLoading: true });
+    const useBranding = () => useContext(BrandingContext);
+
+    const NotificationContext = createContext(null);
+    const useNotification = () => useContext(NotificationContext);
+
+    function NotificationProvider({ children }) {
+      const [notifications, setNotifications] = useState([]);
+
+      const showNotification = (message, type = "success") => {
+        const id = Date.now();
+        setNotifications((prev) => [...prev, { id, message, type }]);
+        setTimeout(() => {
+          setNotifications((prev) => prev.filter((n) => n.id !== id));
+        }, 3000);
+      };
+
+      return (
+        <NotificationContext.Provider value={{ showNotification }}>
+          {children}
+          <div className="fixed top-4 right-4 z-50 space-y-2">
+            {notifications.map((n) => (
+              <div
+                key={n.id}
+                className={`px-4 py-3 rounded-xl shadow-lg text-white font-semibold ${
+                  n.type === "success" ? "bg-green-600" : n.type === "error" ? "bg-red-600" : "bg-blue-600"
+                }`}
+              >
+                {n.message}
+              </div>
+            ))}
+          </div>
+        </NotificationContext.Provider>
+      );
+    }
+
+    function BrandingProvider({ children }) {
+      const [branding, setBranding] = useState(() => {
+        try {
+          const saved = localStorage.getItem("gce_branding");
+          return saved ? { ...defaultBranding, ...JSON.parse(saved) } : defaultBranding;
+        } catch {
+          return defaultBranding;
+        }
+      });
+      const [brandingLoading, setBrandingLoading] = useState(true);
+
+      useEffect(() => {
+        api.get("/admin/branding")
+          .then((res) => {
+            if (res.data) {
+              const next = { ...defaultBranding, ...res.data };
+              setBranding(next);
+              localStorage.setItem("gce_branding", JSON.stringify(next));
+            }
+          })
+          .catch(() => {
+            const saved = localStorage.getItem("gce_branding");
+            if (saved) {
+              try {
+                setBranding({ ...defaultBranding, ...JSON.parse(saved) });
+              } catch {}
+            }
+          })
+          .finally(() => setBrandingLoading(false));
+      }, []);
+
+      const updateBranding = async (updates) => {
+        const next = { ...branding, ...updates };
+        setBranding(next);
+        localStorage.setItem("gce_branding", JSON.stringify(next));
+        try {
+          const res = await api.put("/admin/branding", updates);
+          const merged = { ...defaultBranding, ...res.data };
+          setBranding(merged);
+          localStorage.setItem("gce_branding", JSON.stringify(merged));
+          return merged;
+        } catch (err) {
+          throw err;
+        }
+      };
+
+      return <BrandingContext.Provider value={{ branding, updateBranding, brandingLoading }}>{children}</BrandingContext.Provider>;
+    }
+
+    const fileToBase64 = (file) =>
+      new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+
+    const AuthContext = createContext(null);
+    const useAuth = () => useContext(AuthContext);
+
+    function AuthProvider({ children }) {
+      const [user, setUser] = useState(null);
+      const [loading, setLoading] = useState(true);
+
+      const checkAuth = useCallback(async () => {
+        const token = localStorage.getItem("token");
+        const storedUser = localStorage.getItem("user");
+        
+        // Set authorization header if token exists
+        if (token) {
+          api.defaults.headers.common["Authorization"] = `Bearer ${token}`;
+        }
+        
+        // Restore from localStorage immediately - this is our primary source of truth
+        if (storedUser) {
+          try {
+            const parsedUser = JSON.parse(storedUser);
+            setUser(parsedUser);
+          } catch (e) {
+            localStorage.removeItem("user");
+            localStorage.removeItem("token");
+            delete api.defaults.headers.common["Authorization"];
+          }
+        }
+        
+        // If we have a user from localStorage, we're good - don't clear session
+        // Only validate token in background, but don't clear session on failure
+        if (user || storedUser) {
+          setLoading(false);
+          // Optional: Validate token in background without blocking
+          if (token) {
+            api.get("/auth/me").catch(() => {
+              // Silently fail - don't clear session
+              console.log("Token validation failed, but keeping session alive");
+            });
+          }
+          return;
+        }
+        
+        // Only if no user at all, then clear everything
+        if (!token) {
+          setLoading(false);
+          return;
+        }
+        
+        // Try to validate token if we don't have stored user
+        try {
+          const res = await api.get("/auth/me");
+          const userData = { ...res.data.user, role: res.data.role };
+          setUser(userData);
+          localStorage.setItem("user", JSON.stringify(userData));
+        } catch (err) {
+          localStorage.removeItem("token");
+          delete api.defaults.headers.common["Authorization"];
+          setUser(null);
+        } finally {
+          setLoading(false);
+        }
+      }, []);
+
+      useEffect(() => { checkAuth(); }, [checkAuth]);
+
+      const login = async (type, creds) => {
+        const endpoint = type === "admin" ? "/auth/admin/login" : "/auth/student/login";
+        const res = await api.post(endpoint, creds);
+        localStorage.setItem("token", res.data.token);
+        const userData = { ...res.data.user, role: type === "admin" ? "admin" : "student" };
+        localStorage.setItem("user", JSON.stringify(userData));
+        api.defaults.headers.common["Authorization"] = `Bearer ${res.data.token}`;
+        setUser(userData);
+        return res.data;
+      };
+
+      const logout = () => { localStorage.removeItem("token"); localStorage.removeItem("user"); delete api.defaults.headers.common["Authorization"]; setUser(null); };
+
+      return (
+        <AuthContext.Provider value={{ user, loading, login, logout }}>
+          {children}
+        </AuthContext.Provider>
+      );
+    }
+
+    function ProtectedRoute({ children, role }) {
+      const { user, loading } = useAuth();
+      if (loading) return <div className="flex items-center justify-center h-screen text-lg">Loading...</div>;
+      if (!user) return <Navigate to="/login" />;
+      if (role && user.role !== role) return <Navigate to="/login" />;
+      return children;
+    }
+
+    function Login() {
+      const { branding } = useBranding();
+      const [type, setType] = useState("admin");
+      const adminDefaults = { userId: "admin", password: "", studentId: "" };
+      const studentDefaults = { userId: "", password: "", studentId: "" };
+      const [form, setForm] = useState(adminDefaults);
+      const [error, setError] = useState("");
+      const { login } = useAuth();
+      const navigate = useNavigate();
+
+      const handleSubmit = async (e) => {
+        e.preventDefault();
+        setError("");
+        try {
+          if (type === "admin") {
+            await login("admin", { userId: form.userId, password: form.password });
+            navigate("/admin");
+          } else {
+            await login("student", { studentId: form.studentId, password: form.password });
+            navigate("/student");
+          }
+        } catch (err) {
+          setError(err?.response?.data?.message || "Login failed");
+        }
+      };
+
+      return (
+        <div className="min-h-screen flex items-center justify-center px-4">
+          <div className="glass p-8 rounded-3xl shadow-2xl max-w-md w-full space-y-6 border border-slate-200">
+            <div className="text-center space-y-3">
+              {branding.logoUrl && <img src={branding.logoUrl} alt="Logo" className="h-20 w-auto mx-auto object-contain" />}
+              <p className="text-sm text-blue-600 font-semibold tracking-widest uppercase">Genius Computer Education</p>
+              <h1 className="text-3xl font-bold text-slate-800">Entrance Exam Portal</h1>
+              <p className="text-slate-500">Admin & Student secure login</p>
+            </div>
+
+            <div className="grid grid-cols-2 bg-slate-100 rounded-xl p-1">
+              {["admin", "student"].map((role) => (
+                <button
+                  key={role}
+                  onClick={() => {
+                    setType(role);
+                    setForm(role === "admin" ? { ...adminDefaults } : { ...studentDefaults });
+                    setError("");
+                  }}
+                  className={`py-2 rounded-lg text-sm font-semibold transition ${type === role ? "bg-white shadow text-blue-600" : "text-slate-500"}`}
+                >
+                  {role === "admin" ? "Admin Login" : "Student Login"}
+                </button>
+              ))}
+            </div>
+
+            <form className="space-y-4" onSubmit={handleSubmit}>
+              {type === "admin" ? (
+                <>
+                  <div>
+                    <label className="text-sm font-semibold text-slate-600">Admin User ID</label>
+                    <input
+                      required
+                      className="w-full mt-1 px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none"
+                      value={form.userId}
+                      onChange={(e) => setForm({ ...form, userId: e.target.value })}
+                      placeholder="Enter admin user ID"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-semibold text-slate-600">Password</label>
+                    <input
+                      type="password"
+                      required
+                      className="w-full mt-1 px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none"
+                      value={form.password}
+                      onChange={(e) => setForm({ ...form, password: e.target.value })}
+                    />
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div>
+                    <label className="text-sm font-semibold text-slate-600">Student ID</label>
+                    <input
+                      required
+                      className="w-full mt-1 px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none"
+                      value={form.studentId}
+                      onChange={(e) => setForm({ ...form, studentId: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-semibold text-slate-600">Password</label>
+                    <input
+                      type="password"
+                      required
+                      className="w-full mt-1 px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none"
+                      value={form.password}
+                      onChange={(e) => setForm({ ...form, password: e.target.value })}
+                    />
+                  </div>
+                </>
+              )}
+
+              {error && <p className="text-red-500 text-sm">{error}</p>}
+
+              <button
+                type="submit"
+                className="w-full py-3 rounded-xl bg-blue-600 text-white font-semibold shadow hover:bg-blue-700 transition"
+              >
+                {type === "admin" ? "Login as Admin" : "Login as Student"}
+              </button>
+            </form>
+
+            <div className="text-center text-xs text-slate-500">
+              Need help? Contact Genius Computer Education support.
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    const StatCard = ({ title, value, trend }) => (
+      <div className="p-4 rounded-2xl bg-white shadow-sm border border-slate-100">
+        <p className="text-sm text-slate-500">{title}</p>
+        <div className="flex items-end justify-between mt-2">
+          <p className="text-3xl font-semibold text-slate-800">{value}</p>
+          {trend !== undefined && (
+            <span className="text-sm text-green-600 bg-green-50 px-2 py-1 rounded-full">{trend}%</span>
+          )}
+        </div>
+      </div>
+    );
+
+    const Table = ({ columns, data }) => (
+      <div className="table-scroll border border-slate-200 rounded-2xl bg-white shadow-sm">
+        <table className="w-full text-left">
+          <thead className="bg-slate-100 text-xs uppercase tracking-wide text-slate-600">
+            <tr>
+              {columns.map((col) => (
+                <th key={col.key} className="px-4 py-3">{col.label}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="text-sm">
+            {data.map((row, idx) => (
+              <tr key={idx} className="border-t border-slate-100 hover:bg-slate-50">
+                {columns.map((col) => (
+                  <td key={col.key} className="px-4 py-3 text-slate-700">
+                    {col.render ? col.render(row) : row[col.key]}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
+
+    function AdminDashboard() {
+      const [stats, setStats] = useState(null);
+      const [recent, setRecent] = useState([]);
+
+      useEffect(() => {
+        api.get("/admin/dashboard").then((res) => {
+          setStats(res.data);
+          setRecent(res.data.recentResults.map((r) => ({
+            student: r.student?.name || "N/A",
+            exam: r.exam?.title || "N/A",
+            score: `${r.totalScore} / ${r.totalMarks}`,
+            status: r.passed ? "Pass" : "Fail",
+          })));
+        });
+      }, []);
+
+      if (!stats) return <div className="p-6">Loading dashboard...</div>;
+
+      return (
+        <div className="space-y-6">
+          <div>
+            <h1 className="text-2xl font-bold text-slate-800">Welcome back, Admin</h1>
+            <p className="text-slate-500">Here’s what’s happening with entrance exams today.</p>
+          </div>
+
+          <div className="grid md:grid-cols-4 gap-4">
+            <StatCard title="Active Students" value={stats.totalStudents} />
+            <StatCard title="Exams Conducted" value={stats.totalExams} />
+            <StatCard title="Questions Bank" value={stats.totalQuestions} />
+            <StatCard title="Pass Percentage" value={stats.passPercent + "%"} />
+          </div>
+
+          <div>
+            <h2 className="text-lg font-semibold text-slate-800 mb-3">Recent Results</h2>
+            <Table columns={[
+              { key: "student", label: "Student" },
+              { key: "exam", label: "Exam" },
+              { key: "score", label: "Score" },
+              { key: "status", label: "Status" },
+            ]} data={recent} />
+          </div>
+        </div>
+      );
+    }
+
+    function ManageStudents() {
+      const { showNotification } = useNotification();
+      const [students, setStudents] = useState([]);
+      const [search, setSearch] = useState("");
+      const [showForm, setShowForm] = useState(false);
+      const [editingId, setEditingId] = useState(null);
+      const [deleteId, setDeleteId] = useState(null);
+      const initialStudentState = { name: "", studentId: "", email: "", mobile: "", batch: "", course: "", highestQualification: "", password: "" };
+      const [studentForm, setStudentForm] = useState(initialStudentState);
+      const [submitting, setSubmitting] = useState(false);
+      const [error, setError] = useState("");
+
+      const fetchStudents = useCallback(() => {
+        api.get("/admin/students", { params: { search } }).then((res) => setStudents(res.data.students));
+      }, [search]);
+
+      useEffect(() => { fetchStudents(); }, [fetchStudents]);
+
+      const handleStudentSubmit = async (e) => {
+        e.preventDefault();
+        setSubmitting(true);
+        setError("");
+        try {
+          const payload = { ...studentForm };
+          if (!editingId) payload.password = studentForm.password || studentForm.studentId;
+          if (editingId) {
+            await api.put(`/admin/students/${editingId}`, payload);
+            showNotification("Student updated successfully!", "success");
+          } else {
+            await api.post("/admin/students", payload);
+            showNotification("Student created successfully!", "success");
+          }
+          setStudentForm(initialStudentState);
+          setEditingId(null);
+          setShowForm(false);
+          fetchStudents();
+        } catch (err) {
+          setError(err.response?.data?.message || "Failed to save student");
+          showNotification("Failed to save student", "error");
+        } finally {
+          setSubmitting(false);
+        }
+      };
+
+      const handleDelete = async () => {
+        try {
+          await api.delete(`/admin/students/${deleteId}`);
+          setDeleteId(null);
+          fetchStudents();
+          showNotification("Student deleted successfully!", "success");
+        } catch (err) {
+          showNotification("Failed to delete student", "error");
+        }
+      };
+
+      return (
+        <div className="space-y-6">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            <div>
+              <h1 className="text-2xl font-bold text-slate-800">Manage Students</h1>
+              <p className="text-slate-500">Add, edit or remove student accounts.</p>
+            </div>
+            <button
+              className="px-4 py-2 rounded-xl bg-blue-600 text-white font-semibold shadow hover:bg-blue-700"
+              onClick={() => { setEditingId(null); setStudentForm(initialStudentState); setShowForm(true); }}
+            >
+              + Add Student
+            </button>
+          </div>
+
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 space-y-4">
+            <div className="flex gap-3 flex-wrap">
+              <input
+                className="flex-1 min-w-[200px] px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none"
+                placeholder="Search by name, email or ID"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+              <button
+                onClick={fetchStudents}
+                className="px-4 py-2.5 rounded-xl border border-blue-600 text-blue-600 font-semibold hover:bg-blue-50"
+              >
+                Search
+              </button>
+            </div>
+
+            <div className="table-scroll border border-slate-200 rounded-2xl bg-white shadow-sm">
+                <table className="w-full text-left">
+                  <thead className="bg-slate-100 text-xs uppercase tracking-wide text-slate-600">
+                    <tr>
+                      <th className="px-4 py-3">Student ID</th>
+                      <th className="px-4 py-3">Name</th>
+                      <th className="px-4 py-3">Batch</th>
+                      <th className="px-4 py-3">Course</th>
+                      <th className="px-4 py-3">Mobile</th>
+                      <th className="px-4 py-3">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="text-sm">
+                    {students.map((s) => (
+                      <tr key={s._id} className="border-t border-slate-100 hover:bg-slate-50">
+                        <td className="px-4 py-3 text-slate-700">{s.studentId}</td>
+                        <td className="px-4 py-3 text-slate-700">{s.name}</td>
+                        <td className="px-4 py-3 text-slate-700">{s.batch}</td>
+                        <td className="px-4 py-3 text-slate-700">{s.course}</td>
+                        <td className="px-4 py-3 text-slate-700">{s.mobile}</td>
+                        <td className="px-4 py-3">
+                          <div className="flex gap-2">
+                            <button
+                              className="px-3 py-1 text-xs rounded-lg bg-amber-50 text-amber-600 border border-amber-200 hover:bg-amber-100"
+                              onClick={() => {
+                                setEditingId(s._id);
+                                setStudentForm({
+                                  name: s.name || "",
+                                  studentId: s.studentId || "",
+                                  email: s.email || "",
+                                  mobile: s.mobile || "",
+                                  batch: s.batch || "",
+                                  course: s.course || "",
+                                  password: "",
+                                });
+                                setShowForm(true);
+                              }}
+                            >
+                              Edit
+                            </button>
+                            <button
+                              className="px-3 py-1 text-xs rounded-lg bg-red-50 text-red-600 border border-red-200 hover:bg-red-100"
+                              onClick={() => setDeleteId(s._id)}
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+          </div>
+
+          {showForm && (
+            <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-50">
+              <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl p-6 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-xl font-semibold text-slate-800">{editingId ? "Edit Student" : "Add Student"}</h3>
+                    <p className="text-slate-500 text-sm">{editingId ? "Update student details." : "Create a new student account with login credentials."}</p>
+                  </div>
+                  <button className="text-slate-400 hover:text-slate-600" onClick={() => setShowForm(false)}>✕</button>
+                </div>
+
+                {error && <div className="text-red-600 text-sm bg-red-50 px-3 py-2 rounded-xl">{error}</div>}
+
+                <form className="grid md:grid-cols-2 gap-4" onSubmit={handleStudentSubmit}>
+                  <input
+                    required
+                    name="name"
+                    value={studentForm.name}
+                    onChange={(e) => setStudentForm({ ...studentForm, name: e.target.value })}
+                    placeholder="Full Name"
+                    className="px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500"
+                  />
+                  <input
+                    required
+                    name="studentId"
+                    value={studentForm.studentId}
+                    onChange={(e) => setStudentForm({ ...studentForm, studentId: e.target.value })}
+                    placeholder="Student ID"
+                    className="px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500"
+                  />
+                  <input
+                    name="email"
+                    type="email"
+                    value={studentForm.email}
+                    onChange={(e) => setStudentForm({ ...studentForm, email: e.target.value })}
+                    placeholder="Email (optional)"
+                    className="px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500"
+                  />
+                  <input
+                    name="mobile"
+                    value={studentForm.mobile}
+                    onChange={(e) => setStudentForm({ ...studentForm, mobile: e.target.value })}
+                    placeholder="Mobile"
+                    className="px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500"
+                  />
+                  <input
+                    name="batch"
+                    value={studentForm.batch}
+                    onChange={(e) => setStudentForm({ ...studentForm, batch: e.target.value })}
+                    placeholder="Batch"
+                    className="px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500"
+                  />
+                  <div>
+                    <label className="text-xs uppercase tracking-wide text-slate-500 mb-1 block">Highest Qualification</label>
+                    <select
+                      name="highestQualification"
+                      value={studentForm.highestQualification || ""}
+                      onChange={(e) => {
+                        const qual = e.target.value;
+                        setStudentForm((prev) => {
+                          const courseMappings = getCourseMappings();
+                          const mapping = courseMappings.find(m => m.qualification === qual);
+                          const firstCourse = mapping && mapping.courses.length > 0 ? mapping.courses[0] : "";
+                          return { ...prev, highestQualification: qual, course: firstCourse };
+                        });
+                      }}
+                      className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 h-10"
+                    >
+                      <option value="">Select qualification</option>
+                      <option value="10th">10th</option>
+                      <option value="12th">12th</option>
+                      <option value="Graduate">Graduate</option>
+                      <option value="Post Graduate">Post Graduate</option>
+                      <option value="Other">Other</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs uppercase tracking-wide text-slate-500 mb-1 block">Course</label>
+                    <select
+                      name="course"
+                      value={studentForm.course}
+                      onChange={(e) => setStudentForm({ ...studentForm, course: e.target.value })}
+                      className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 h-10"
+                    >
+                      <option value="">Select course</option>
+                      {(() => {
+                        const courseMappings = getCourseMappings();
+                        const mapping = courseMappings.find(m => m.qualification === studentForm.highestQualification);
+                        if (mapping && mapping.courses.length > 0) {
+                          return mapping.courses.map((course, idx) => (
+                            <option key={idx} value={course}>{course}</option>
+                          ));
+                        }
+                        return null;
+                      })()}
+                      <option value="DCA">DCA</option>
+                      <option value="BCA">BCA</option>
+                      <option value="PGDCA">PGDCA</option>
+                      <option value="Tally">Tally</option>
+                      <option value="Busy">Busy</option>
+                      <option value="DTP">DTP</option>
+                    </select>
+                    <p className="text-xs text-slate-500 mt-1">For multiple courses, separate with commas (e.g., DCA, Tally)</p>
+                  </div>
+                  <input
+                    name="password"
+                    type="text"
+                    value={studentForm.password}
+                    onChange={(e) => setStudentForm({ ...studentForm, password: e.target.value })}
+                    placeholder="Password (default Student ID)"
+                    className="px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500"
+                  />
+
+                  <div className="md:col-span-2 flex justify-end gap-3 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowForm(false)}
+                      className="px-4 py-2 rounded-xl border border-slate-200 text-slate-600"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={submitting}
+                      className="px-4 py-2 rounded-xl bg-blue-600 text-white font-semibold disabled:opacity-60"
+                    >
+                      {submitting ? "Saving..." : editingId ? "Update Student" : "Save Student"}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+
+          {deleteId && (
+            <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-50">
+              <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 space-y-4">
+                <h3 className="text-lg font-semibold text-slate-800">Confirm Delete</h3>
+                <p className="text-slate-500 text-sm">Are you sure you want to delete this student? This action cannot be undone.</p>
+                <div className="flex justify-end gap-3">
+                  <button className="px-4 py-2 rounded-xl border border-slate-200 text-slate-600" onClick={() => setDeleteId(null)}>Cancel</button>
+                  <button className="px-4 py-2 rounded-xl bg-red-600 text-white font-semibold" onClick={handleDelete}>Delete</button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    function ManageQuestions() {
+      const { showNotification } = useNotification();
+      const [questions, setQuestions] = useState([]);
+      const [showForm, setShowForm] = useState(false);
+      const [editingId, setEditingId] = useState(null);
+      const [deleteId, setDeleteId] = useState(null);
+      const [subjectOptions, setSubjectOptions] = useState([]);
+      const questionEditorRef = useRef(null);
+      const initialQuestion = {
+        subject: "",
+        topic: "",
+        question: "",
+        options: ["", "", "", ""],
+        correctAnswer: 0,
+        difficulty: "medium",
+        marks: 1,
+        explanation: "",
+      };
+      const [questionForm, setQuestionForm] = useState(initialQuestion);
+      const [submitting, setSubmitting] = useState(false);
+      const [error, setError] = useState("");
+
+      const fetchQuestions = useCallback(() => {
+        api.get("/questions").then((res) => setQuestions(res.data.questions));
+      }, []);
+
+      useEffect(() => { fetchQuestions(); }, [fetchQuestions]);
+      useEffect(() => {
+        api.get("/questions/subjects").then((res) => setSubjectOptions(res.data || []));
+      }, []);
+
+      const updateOption = (index, value) => {
+        setQuestionForm((prev) => ({
+          ...prev,
+          options: prev.options.map((opt, i) => (i === index ? value : opt)),
+        }));
+      };
+
+      const handleQuestionSubmit = async (e) => {
+        e.preventDefault();
+        setSubmitting(true);
+        setError("");
+        try {
+          if (questionForm.options.some((opt) => !opt.trim())) {
+            throw new Error("All options are required");
+          }
+          // Get latest content from ref
+          const questionContent = questionEditorRef.current?.innerHTML || questionForm.question;
+          const payload = { ...questionForm, question: questionContent };
+          if (editingId) {
+            await api.put(`/questions/${editingId}`, payload);
+            showNotification("Question updated successfully!", "success");
+          } else {
+            await api.post("/questions", payload);
+            showNotification("Question created successfully!", "success");
+          }
+          setQuestionForm(initialQuestion);
+          setEditingId(null);
+          setShowForm(false);
+          fetchQuestions();
+        } catch (err) {
+          setError(err?.response?.data?.message || err.message || "Failed to save question");
+          showNotification("Failed to save question", "error");
+        } finally {
+          setSubmitting(false);
+        }
+      };
+
+      const handleEdit = (question) => {
+        setQuestionForm({
+          subject: question.subject,
+          topic: question.topic || "",
+          question: question.question,
+          options: question.options,
+          correctAnswer: question.correctAnswer,
+          difficulty: question.difficulty,
+          marks: question.marks,
+          explanation: question.explanation || "",
+        });
+        setEditingId(question._id);
+        setShowForm(true);
+      };
+
+      const handleDeleteQuestion = async () => {
+        try {
+          await api.delete(`/questions/${deleteId}`);
+          setDeleteId(null);
+          fetchQuestions();
+          showNotification("Question deleted successfully!", "success");
+        } catch (err) {
+          showNotification("Failed to delete question", "error");
+        }
+      };
+
+      return (
+        <div className="space-y-6">
+          <div className="flex items-center justify-between flex-wrap gap-3">
+            <div>
+              <h1 className="text-2xl font-bold text-slate-800">Question Bank</h1>
+              <p className="text-slate-500">Manage subjects, difficulty and explanations.</p>
+            </div>
+            <button
+              className="px-4 py-2 rounded-xl bg-blue-600 text-white font-semibold shadow hover:bg-blue-700"
+              onClick={() => { setQuestionForm(initialQuestion); setEditingId(null); setShowForm(true); }}
+            >
+              + Add Question
+            </button>
+          </div>
+
+          <div className="table-scroll border border-slate-200 rounded-2xl bg-white shadow-sm max-h-[calc(100vh-320px)] overflow-y-auto">
+                <table className="w-full text-left">
+                  <thead className="bg-slate-100 text-xs uppercase tracking-wide text-slate-600">
+                    <tr>
+                      <th className="px-4 py-3">S.No</th>
+                      <th className="px-4 py-3">Subject</th>
+                      <th className="px-4 py-3">Topic</th>
+                      <th className="px-4 py-3">Question</th>
+                      <th className="px-4 py-3">Difficulty</th>
+                      <th className="px-4 py-3">Marks</th>
+                      <th className="px-4 py-3">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="text-sm">
+                    {questions.map((q, index) => (
+                      <tr key={q._id} className="border-t border-slate-100 hover:bg-slate-50">
+                        <td className="px-4 py-3 text-slate-700 font-semibold">{index + 1}</td>
+                        <td className="px-4 py-3 text-slate-700">
+                          <span className="px-2 py-1 rounded-lg bg-blue-50 text-blue-700 text-xs font-medium">{q.subject}</span>
+                        </td>
+                        <td className="px-4 py-3 text-slate-700">{q.topic || "-"}</td>
+                        <td className="px-4 py-3 text-slate-700 max-w-md truncate" title={q.question}>{q.question}</td>
+                        <td className="px-4 py-3">
+                          <span className={`px-2 py-1 rounded-lg text-xs font-medium ${
+                            q.difficulty === "easy" ? "bg-green-100 text-green-700" :
+                            q.difficulty === "medium" ? "bg-amber-100 text-amber-700" :
+                            "bg-red-100 text-red-700"
+                          }`}>
+                            {q.difficulty}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-slate-700 font-semibold">{q.marks}</td>
+                        <td className="px-4 py-3">
+                          <div className="flex gap-2">
+                            <button
+                              className="px-3 py-1 text-xs rounded-lg bg-blue-100 text-blue-600 hover:bg-blue-200"
+                              onClick={() => handleEdit(q)}
+                            >
+                              Edit
+                            </button>
+                            <button
+                              className="px-3 py-1 text-xs rounded-lg bg-red-100 text-red-600 hover:bg-red-200"
+                              onClick={() => setDeleteId(q._id)}
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                    {questions.length === 0 && (
+                      <tr>
+                        <td className="px-4 py-6 text-slate-500" colSpan="7">No questions found.</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+          {showForm && (
+            <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-50">
+              <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl p-6 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-xl font-semibold text-slate-800">{editingId ? "Edit Question" : "Create Question"}</h3>
+                    <p className="text-slate-500 text-sm">Build MCQ with subject, difficulty and answer key.</p>
+                  </div>
+                  <button className="text-slate-400 hover:text-slate-600" onClick={() => { setShowForm(false); setEditingId(null); setQuestionForm(initialQuestion); }}>✕</button>
+                </div>
+
+                {error && <div className="text-red-600 text-sm bg-red-50 px-3 py-2 rounded-xl">{error}</div>}
+
+                <form className="space-y-4" onSubmit={handleQuestionSubmit}>
+                  <div className="grid md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-xs uppercase tracking-wide text-slate-500">Subject</label>
+                      <input
+                        list="subject-suggestions"
+                        required
+                        value={questionForm.subject}
+                        onChange={(e) => setQuestionForm({ ...questionForm, subject: e.target.value })}
+                        className="w-full mt-1 px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500"
+                        placeholder="Subject"
+                      />
+                      <datalist id="subject-suggestions">
+                        {subjectOptions.map((subj) => (
+                          <option key={subj} value={subj} />
+                        ))}
+                      </datalist>
+                    </div>
+                    <div>
+                      <label className="text-xs uppercase tracking-wide text-slate-500">Topic</label>
+                      <input
+                        value={questionForm.topic}
+                        onChange={(e) => setQuestionForm({ ...questionForm, topic: e.target.value })}
+                        className="w-full mt-1 px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500"
+                        placeholder="Topic (optional)"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-xs uppercase tracking-wide text-slate-500">Question Text</label>
+                    <div className="border border-slate-200 rounded-2xl overflow-hidden focus-within:ring-2 focus-within:ring-blue-500">
+                      <div className="flex gap-1 p-2 bg-slate-50 border-b border-slate-200 flex-wrap">
+                        <button type="button" onClick={(e) => { e.preventDefault(); document.execCommand('bold', false, null); }} className="px-3 py-1 text-sm font-semibold rounded hover:bg-slate-200" title="Bold">B</button>
+                        <button type="button" onClick={(e) => { e.preventDefault(); document.execCommand('italic', false, null); }} className="px-3 py-1 text-sm italic rounded hover:bg-slate-200" title="Italic">I</button>
+                        <button type="button" onClick={(e) => { e.preventDefault(); document.execCommand('underline', false, null); }} className="px-3 py-1 text-sm underline rounded hover:bg-slate-200" title="Underline">U</button>
+                        <button type="button" onClick={(e) => { e.preventDefault(); document.execCommand('subscript', false, null); }} className="px-3 py-1 text-sm rounded hover:bg-slate-200" title="Subscript">X₂</button>
+                        <button type="button" onClick={(e) => { e.preventDefault(); document.execCommand('superscript', false, null); }} className="px-3 py-1 text-sm rounded hover:bg-slate-200" title="Superscript">X²</button>
+                        <button type="button" onClick={(e) => { e.preventDefault(); document.execCommand('insertUnorderedList', false, null); }} className="px-3 py-1 text-sm rounded hover:bg-slate-200" title="Bullet List">• List</button>
+                        <button type="button" onClick={(e) => { e.preventDefault(); document.execCommand('insertOrderedList', false, null); }} className="px-3 py-1 text-sm rounded hover:bg-slate-200" title="Numbered List">1. List</button>
+                        <button type="button" onClick={(e) => { e.preventDefault(); document.execCommand('justifyLeft', false, null); }} className="px-3 py-1 text-sm rounded hover:bg-slate-200" title="Align Left">←</button>
+                        <button type="button" onClick={(e) => { e.preventDefault(); document.execCommand('justifyCenter', false, null); }} className="px-3 py-1 text-sm rounded hover:bg-slate-200" title="Align Center">↔</button>
+                        <button type="button" onClick={(e) => { e.preventDefault(); document.execCommand('justifyRight', false, null); }} className="px-3 py-1 text-sm rounded hover:bg-slate-200" title="Align Right">→</button>
+                        <div className="w-px h-6 bg-slate-300 mx-1"></div>
+                        <button type="button" onClick={(e) => { e.preventDefault(); document.execCommand('insertText', false, '∑'); }} className="px-3 py-1 text-sm rounded hover:bg-slate-200" title="Summation">∑</button>
+                        <button type="button" onClick={(e) => { e.preventDefault(); document.execCommand('insertText', false, '∫'); }} className="px-3 py-1 text-sm rounded hover:bg-slate-200" title="Integral">∫</button>
+                        <button type="button" onClick={(e) => { e.preventDefault(); document.execCommand('insertText', false, 'π'); }} className="px-3 py-1 text-sm rounded hover:bg-slate-200" title="Pi">π</button>
+                        <button type="button" onClick={(e) => { e.preventDefault(); document.execCommand('insertText', false, '√'); }} className="px-3 py-1 text-sm rounded hover:bg-slate-200" title="Square Root">√</button>
+                        <button type="button" onClick={(e) => { e.preventDefault(); document.execCommand('insertText', false, '∞'); }} className="px-3 py-1 text-sm rounded hover:bg-slate-200" title="Infinity">∞</button>
+                        <button type="button" onClick={(e) => { e.preventDefault(); document.execCommand('insertText', false, '±'); }} className="px-3 py-1 text-sm rounded hover:bg-slate-200" title="Plus Minus">±</button>
+                        <button type="button" onClick={(e) => { e.preventDefault(); document.execCommand('insertText', false, '≠'); }} className="px-3 py-1 text-sm rounded hover:bg-slate-200" title="Not Equal">≠</button>
+                        <button type="button" onClick={(e) => { e.preventDefault(); document.execCommand('insertText', false, '≤'); }} className="px-3 py-1 text-sm rounded hover:bg-slate-200" title="Less Than or Equal">≤</button>
+                        <button type="button" onClick={(e) => { e.preventDefault(); document.execCommand('insertText', false, '≥'); }} className="px-3 py-1 text-sm rounded hover:bg-slate-200" title="Greater Than or Equal">≥</button>
+                        <button type="button" onClick={(e) => { e.preventDefault(); document.execCommand('insertText', false, '×'); }} className="px-3 py-1 text-sm rounded hover:bg-slate-200" title="Multiplication">×</button>
+                        <button type="button" onClick={(e) => { e.preventDefault(); document.execCommand('insertText', false, '÷'); }} className="px-3 py-1 text-sm rounded hover:bg-slate-200" title="Division">÷</button>
+                        <button type="button" onClick={(e) => { e.preventDefault(); document.execCommand('insertText', false, '°'); }} className="px-3 py-1 text-sm rounded hover:bg-slate-200" title="Degree">°</button>
+                        <button type="button" onClick={(e) => { e.preventDefault(); document.execCommand('insertText', false, 'α'); }} className="px-3 py-1 text-sm rounded hover:bg-slate-200" title="Alpha">α</button>
+                        <button type="button" onClick={(e) => { e.preventDefault(); document.execCommand('insertText', false, 'β'); }} className="px-3 py-1 text-sm rounded hover:bg-slate-200" title="Beta">β</button>
+                        <button type="button" onClick={(e) => { e.preventDefault(); document.execCommand('insertText', false, 'γ'); }} className="px-3 py-1 text-sm rounded hover:bg-slate-200" title="Gamma">γ</button>
+                        <button type="button" onClick={(e) => { e.preventDefault(); document.execCommand('insertText', false, 'θ'); }} className="px-3 py-1 text-sm rounded hover:bg-slate-200" title="Theta">θ</button>
+                        <button type="button" onClick={(e) => { e.preventDefault(); document.execCommand('insertText', false, 'λ'); }} className="px-3 py-1 text-sm rounded hover:bg-slate-200" title="Lambda">λ</button>
+                        <button type="button" onClick={(e) => { e.preventDefault(); document.execCommand('insertText', false, 'μ'); }} className="px-3 py-1 text-sm rounded hover:bg-slate-200" title="Mu">μ</button>
+                        <button type="button" onClick={(e) => { e.preventDefault(); document.execCommand('insertText', false, 'σ'); }} className="px-3 py-1 text-sm rounded hover:bg-slate-200" title="Sigma">σ</button>
+                        <button type="button" onClick={(e) => { e.preventDefault(); document.execCommand('insertText', false, 'φ'); }} className="px-3 py-1 text-sm rounded hover:bg-slate-200" title="Phi">φ</button>
+                        <button type="button" onClick={(e) => { e.preventDefault(); document.execCommand('insertText', false, 'ω'); }} className="px-3 py-1 text-sm rounded hover:bg-slate-200" title="Omega">ω</button>
+                      </div>
+                      <div
+                        ref={questionEditorRef}
+                        contentEditable
+                        required
+                        suppressContentEditableWarning
+                        onBlur={(e) => setQuestionForm({ ...questionForm, question: e.target.innerHTML })}
+                        className="w-full px-4 py-3 min-h-[100px] focus:outline-none"
+                        dangerouslySetInnerHTML={{ __html: questionForm.question }}
+                      ></div>
+                    </div>
+                  </div>
+
+                  <div className="grid md:grid-cols-2 gap-4">
+                    {questionForm.options.map((opt, idx) => (
+                      <div key={idx} className="space-y-1">
+                        <label className="text-xs uppercase tracking-wide text-slate-500">Option {idx + 1}</label>
+                        <input
+                          required
+                          value={opt}
+                          onChange={(e) => updateOption(idx, e.target.value)}
+                          className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500"
+                          placeholder={`Answer choice ${idx + 1}`}
+                        />
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="grid md:grid-cols-3 gap-4">
+                    <div>
+                      <label className="text-xs uppercase tracking-wide text-slate-500">Correct Answer</label>
+                      <select
+                        value={questionForm.correctAnswer}
+                        onChange={(e) => setQuestionForm({ ...questionForm, correctAnswer: Number(e.target.value) })}
+                        className="w-full mt-1 px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 h-[52px]"
+                      >
+                        {questionForm.options.map((_, idx) => (
+                          <option key={idx} value={idx}>{`Option ${idx + 1}`}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-xs uppercase tracking-wide text-slate-500">Difficulty</label>
+                      <select
+                        value={questionForm.difficulty}
+                        onChange={(e) => setQuestionForm({ ...questionForm, difficulty: e.target.value })}
+                        className="w-full mt-1 px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 h-[52px]"
+                      >
+                        <option value="easy">Easy</option>
+                        <option value="medium">Medium</option>
+                        <option value="hard">Hard</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-xs uppercase tracking-wide text-slate-500">Marks</label>
+                      <input
+                        type="number"
+                        min="1"
+                        value={questionForm.marks}
+                        onChange={(e) => setQuestionForm({ ...questionForm, marks: Number(e.target.value) })}
+                        className="w-full mt-1 px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 h-[52px]"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-xs uppercase tracking-wide text-slate-500">Explanation (optional)</label>
+                    <textarea
+                      value={questionForm.explanation}
+                      onChange={(e) => setQuestionForm({ ...questionForm, explanation: e.target.value })}
+                      className="w-full mt-1 px-4 py-3 rounded-2xl border border-slate-200 focus:ring-2 focus:ring-blue-500"
+                      rows="2"
+                    ></textarea>
+                  </div>
+
+                  <div className="flex justify-end gap-3 pt-2">
+                    <button type="button" className="px-4 py-2 rounded-xl border border-slate-200 text-slate-600" onClick={() => setShowForm(false)}>
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={submitting}
+                      className="px-4 py-2 rounded-xl bg-blue-600 text-white font-semibold disabled:opacity-60"
+                    >
+                      {submitting ? "Saving..." : "Save Question"}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+
+          {deleteId && (
+            <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-50">
+              <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-4">
+                <h3 className="text-xl font-semibold text-slate-800">Delete Question</h3>
+                <p className="text-slate-500">Are you sure you want to delete this question? This action cannot be undone.</p>
+                <div className="flex justify-end gap-3 pt-2">
+                  <button className="px-4 py-2 rounded-xl border border-slate-200 text-slate-600" onClick={() => setDeleteId(null)}>Cancel</button>
+                  <button className="px-4 py-2 rounded-xl bg-red-600 text-white font-semibold" onClick={handleDeleteQuestion}>Delete</button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    function ManageExams() {
+      const { showNotification } = useNotification();
+      const [exams, setExams] = useState([]);
+      const [showForm, setShowForm] = useState(false);
+      const [editingId, setEditingId] = useState(null);
+      const [deleteId, setDeleteId] = useState(null);
+      const initialExam = {
+        title: "",
+        description: "",
+        subjects: "",
+        totalQuestions: 20,
+        durationMinutes: 60,
+        passingMarks: 12,
+        marksPerQuestion: 1,
+        negativeMarking: 0,
+        startTime: new Date().toISOString().slice(0, 16),
+        endTime: new Date(Date.now() + 3600000).toISOString().slice(0, 16),
+        assignToAll: true,
+        shuffleQuestions: true,
+        shuffleOptions: true,
+        showResultImmediately: true,
+        enableSecurity: true,
+        status: "scheduled",
+        selectedQuestions: [],
+      };
+      const [examForm, setExamForm] = useState(initialExam);
+      const [submitting, setSubmitting] = useState(false);
+      const [error, setError] = useState("");
+      const [questions, setQuestions] = useState([]);
+      const [showQuestionSelector, setShowQuestionSelector] = useState(false);
+
+      const fetchExams = useCallback(() => {
+        api.get("/exams").then((res) => setExams(res.data));
+      }, []);
+
+      const fetchQuestions = useCallback(() => {
+        api.get("/questions").then((res) => setQuestions(res.data.questions || []));
+      }, []);
+
+      useEffect(() => { fetchExams(); fetchQuestions(); }, [fetchExams, fetchQuestions]);
+
+      const handleExamSubmit = async (e) => {
+        e.preventDefault();
+        setSubmitting(true);
+        setError("");
+        try {
+          const payload = {
+            ...examForm,
+            subjects: examForm.subjects.split(",").map((s) => s.trim()).filter(Boolean),
+            startTime: new Date(examForm.startTime),
+            endTime: new Date(examForm.endTime),
+          };
+          if (payload.subjects.length === 0 && examForm.selectedQuestions.length === 0) {
+            throw new Error("Select at least one subject or choose specific questions");
+          }
+          if (editingId) {
+            await api.put(`/exams/${editingId}`, payload);
+            showNotification("Exam updated successfully!", "success");
+          } else {
+            await api.post("/exams", payload);
+            showNotification("Exam created successfully!", "success");
+          }
+          setExamForm(initialExam);
+          setEditingId(null);
+          setShowForm(false);
+          fetchExams();
+        } catch (err) {
+          setError(err.response?.data?.message || err.message || "Failed to save exam");
+          showNotification("Failed to save exam", "error");
+        } finally {
+          setSubmitting(false);
+        }
+      };
+
+      const handleDelete = async () => {
+        try {
+          await api.delete(`/exams/${deleteId}`);
+          setDeleteId(null);
+          fetchExams();
+          showNotification("Exam deleted successfully!", "success");
+        } catch (err) {
+          showNotification("Failed to delete exam", "error");
+        }
+      };
+
+      const handleToggleStatus = async (examId, currentStatus) => {
+        try {
+          const newStatus = currentStatus === "scheduled" ? "draft" : "scheduled";
+          await api.put(`/exams/${examId}`, { status: newStatus });
+          fetchExams();
+        } catch (err) {
+          alert(err.response?.data?.message || "Status update failed");
+        }
+      };
+
+      return (
+        <div className="space-y-6">
+          <div className="flex items-center justify-between flex-wrap gap-3">
+            <div>
+              <h1 className="text-2xl font-bold text-slate-800">Exam Builder</h1>
+              <p className="text-slate-500">Schedule, assign and monitor exams.</p>
+            </div>
+            <button
+              className="px-4 py-2 rounded-xl bg-blue-600 text-white font-semibold shadow hover:bg-blue-700"
+              onClick={() => { setEditingId(null); setExamForm(initialExam); setShowForm(true); }}
+            >
+              + Create Exam
+            </button>
+          </div>
+
+          <div className="table-scroll border border-slate-200 rounded-2xl bg-white shadow-sm">
+                <table className="w-full text-left">
+                  <thead className="bg-slate-100 text-xs uppercase tracking-wide text-slate-600">
+                    <tr>
+                      <th className="px-4 py-3">Title</th>
+                      <th className="px-4 py-3">Subjects</th>
+                      <th className="px-4 py-3">Questions</th>
+                      <th className="px-4 py-3">Duration</th>
+                      <th className="px-4 py-3">Marks</th>
+                      <th className="px-4 py-3">Status</th>
+                      <th className="px-4 py-3">Exam Window</th>
+                      <th className="px-4 py-3">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="text-sm">
+                    {exams.map((exam) => (
+                      <tr key={exam._id} className="border-t border-slate-100 hover:bg-slate-50">
+                        <td className="px-4 py-3 text-slate-700 font-semibold">{exam.title}</td>
+                        <td className="px-4 py-3 text-slate-700">{exam.subjects.join(", ")}</td>
+                        <td className="px-4 py-3 text-slate-700">{exam.totalQuestions}</td>
+                        <td className="px-4 py-3 text-slate-700">{exam.durationMinutes} min</td>
+                        <td className="px-4 py-3 text-slate-700">
+                          <div className="text-xs">
+                            <div>Total: {exam.totalQuestions * exam.marksPerQuestion}</div>
+                            <div>Pass: {exam.passingMarks}</div>
+                            <div>Negative: {exam.negativeMarking || 0}</div>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <button
+                            className={`px-3 py-1 text-xs rounded-lg font-semibold ${
+                              exam.status === "scheduled" || exam.status === "ongoing"
+                                ? "bg-green-100 text-green-600 border border-green-200"
+                                : "bg-slate-100 text-slate-600 border border-slate-200"
+                            }`}
+                            onClick={() => handleToggleStatus(exam._id, exam.status)}
+                          >
+                            {exam.status === "scheduled"
+                              ? "Scheduled"
+                              : exam.status === "ongoing"
+                              ? "Ongoing"
+                              : exam.status === "completed"
+                              ? "Completed"
+                              : "Draft"}
+                          </button>
+                        </td>
+                        <td className="px-4 py-3 text-slate-700 text-xs">
+                          {formatDate(exam.startTime)} → {formatDate(exam.endTime)}
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex gap-2">
+                            <button
+                              className="px-3 py-1 text-xs rounded-lg bg-amber-50 text-amber-600 border border-amber-200 hover:bg-amber-100"
+                              onClick={() => {
+                                setEditingId(exam._id);
+                                const formatDateForInput = (dateStr) => {
+                                  if (!dateStr) return new Date().toISOString().slice(0, 16);
+                                  const d = new Date(dateStr);
+                                  const year = d.getFullYear();
+                                  const month = String(d.getMonth() + 1).padStart(2, '0');
+                                  const day = String(d.getDate()).padStart(2, '0');
+                                  const hours = String(d.getHours()).padStart(2, '0');
+                                  const minutes = String(d.getMinutes()).padStart(2, '0');
+                                  return `${year}-${month}-${day}T${hours}:${minutes}`;
+                                };
+                                setExamForm({
+                                  title: exam.title ?? "",
+                                  description: exam.description ?? "",
+                                  subjects: Array.isArray(exam.subjects) ? exam.subjects.join(", ") : (exam.subjects ?? ""),
+                                  totalQuestions: exam.totalQuestions ?? 20,
+                                  durationMinutes: exam.durationMinutes ?? 60,
+                                  passingMarks: exam.passingMarks ?? 12,
+                                  marksPerQuestion: exam.marksPerQuestion ?? 1,
+                                  negativeMarking: exam.negativeMarking ?? 0,
+                                  startTime: formatDateForInput(exam.startTime),
+                                  endTime: formatDateForInput(exam.endTime),
+                                  assignToAll: exam.assignToAll ?? true,
+                                  shuffleQuestions: exam.shuffleQuestions ?? true,
+                                  shuffleOptions: exam.shuffleOptions ?? true,
+                                  showResultImmediately: exam.showResultImmediately ?? true,
+                                  enableSecurity: exam.enableSecurity ?? true,
+                                  status: exam.status ?? "scheduled",
+                                  selectedQuestions: Array.isArray(exam.selectedQuestions) ? exam.selectedQuestions : [],
+                                });
+                                setShowForm(true);
+                              }}
+                            >
+                              Edit
+                            </button>
+                            <button
+                              className="px-3 py-1 text-xs rounded-lg bg-red-50 text-red-600 border border-red-200 hover:bg-red-100"
+                              onClick={() => setDeleteId(exam._id)}
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+          {showForm && (
+            <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-50">
+              <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl p-6 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-xl font-semibold text-slate-800">{editingId ? "Edit Exam" : "Create Exam"}</h3>
+                    <p className="text-slate-500 text-sm">{editingId ? "Update exam details." : "Define schedule, duration and grading logic."}</p>
+                  </div>
+                  <button className="text-slate-400 hover:text-slate-600" onClick={() => setShowForm(false)}>✕</button>
+                </div>
+
+                {error && <div className="text-red-600 text-sm bg-red-50 px-3 py-2 rounded-xl">{error}</div>}
+
+                <form className="space-y-4 max-h-[70vh] overflow-y-auto pr-2" onSubmit={handleExamSubmit}>
+                  <div className="grid md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-xs uppercase tracking-wide text-slate-500">Exam Title</label>
+                      <input
+                        required
+                        value={examForm.title}
+                        onChange={(e) => setExamForm({ ...examForm, title: e.target.value })}
+                        className="w-full mt-1 px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500"
+                        placeholder="e.g. Entrance Mock Test"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs uppercase tracking-wide text-slate-500">Subjects</label>
+                      <input
+                        required={examForm.selectedQuestions.length === 0}
+                        value={examForm.subjects}
+                        onChange={(e) => setExamForm({ ...examForm, subjects: e.target.value })}
+                        className="w-full mt-1 px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500"
+                        placeholder="Comma separated subjects"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-xs uppercase tracking-wide text-slate-500">Description</label>
+                    <textarea
+                      value={examForm.description}
+                      onChange={(e) => setExamForm({ ...examForm, description: e.target.value })}
+                      className="w-full mt-1 px-4 py-3 rounded-2xl border border-slate-200 focus:ring-2 focus:ring-blue-500"
+                      rows="2"
+                    ></textarea>
+                  </div>
+
+                  <div>
+                    <label className="text-xs uppercase tracking-wide text-slate-500">Selected Questions ({examForm.selectedQuestions.length})</label>
+                    <button
+                      type="button"
+                      className="w-full mt-1 px-4 py-2.5 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 flex items-center justify-center gap-2"
+                      onClick={() => setShowQuestionSelector(true)}
+                    >
+                      <span>📋 Select Questions</span>
+                    </button>
+                  </div>
+
+                  <div className="grid md:grid-cols-4 gap-4">
+                    <div>
+                      <label className="text-xs uppercase tracking-wide text-slate-500">Questions</label>
+                      <input
+                        type="number"
+                        min="1"
+                        value={examForm.totalQuestions}
+                        onChange={(e) => setExamForm({ ...examForm, totalQuestions: Number(e.target.value) })}
+                        className="w-full mt-1 px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs uppercase tracking-wide text-slate-500">Duration (min)</label>
+                      <input
+                        type="number"
+                        min="5"
+                        value={examForm.durationMinutes}
+                        onChange={(e) => setExamForm({ ...examForm, durationMinutes: Number(e.target.value) })}
+                        className="w-full mt-1 px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs uppercase tracking-wide text-slate-500">Passing Marks</label>
+                      <input
+                        type="number"
+                        min="1"
+                        value={examForm.passingMarks}
+                        onChange={(e) => setExamForm({ ...examForm, passingMarks: Number(e.target.value) })}
+                        className="w-full mt-1 px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs uppercase tracking-wide text-slate-500">Marks / Question</label>
+                      <input
+                        type="number"
+                        min="1"
+                        value={examForm.marksPerQuestion}
+                        onChange={(e) => setExamForm({ ...examForm, marksPerQuestion: Number(e.target.value) })}
+                        className="w-full mt-1 px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-xs uppercase tracking-wide text-slate-500">Negative Marking</label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.5"
+                        value={examForm.negativeMarking}
+                        onChange={(e) => setExamForm({ ...examForm, negativeMarking: Number(e.target.value) })}
+                        className="w-full mt-1 px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500"
+                        placeholder="0 for no negative marking"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs uppercase tracking-wide text-slate-500">Status</label>
+                      <select
+                        value={examForm.status}
+                        onChange={(e) => setExamForm({ ...examForm, status: e.target.value })}
+                        className="w-full mt-1 px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 h-10"
+                      >
+                        <option value="draft">Draft</option>
+                        <option value="scheduled">Scheduled</option>
+                        <option value="ongoing">Ongoing</option>
+                        <option value="completed">Completed</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="grid md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-xs uppercase tracking-wide text-slate-500">Start Time</label>
+                      <input
+                        type="datetime-local"
+                        value={examForm.startTime}
+                        onChange={(e) => setExamForm({ ...examForm, startTime: e.target.value })}
+                        className="w-full mt-1 px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs uppercase tracking-wide text-slate-500">End Time</label>
+                      <input
+                        type="datetime-local"
+                        value={examForm.endTime}
+                        onChange={(e) => setExamForm({ ...examForm, endTime: e.target.value })}
+                        className="w-full mt-1 px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid md:grid-cols-2 gap-4">
+                    <label className="flex items-center gap-3 px-4 py-3 rounded-2xl border border-slate-200">
+                      <input type="checkbox" checked={examForm.assignToAll} onChange={(e) => setExamForm({ ...examForm, assignToAll: e.target.checked })} />
+                      Assign to all active students
+                    </label>
+                    <label className="flex items-center gap-3 px-4 py-3 rounded-2xl border border-slate-200">
+                      <input type="checkbox" checked={examForm.showResultImmediately} onChange={(e) => setExamForm({ ...examForm, showResultImmediately: e.target.checked })} />
+                      Show result immediately
+                    </label>
+                    <label className="flex items-center gap-3 px-4 py-3 rounded-2xl border border-slate-200">
+                      <input type="checkbox" checked={examForm.shuffleQuestions} onChange={(e) => setExamForm({ ...examForm, shuffleQuestions: e.target.checked })} />
+                      Shuffle questions
+                    </label>
+                    <label className="flex items-center gap-3 px-4 py-3 rounded-2xl border border-slate-200">
+                      <input type="checkbox" checked={examForm.shuffleOptions} onChange={(e) => setExamForm({ ...examForm, shuffleOptions: e.target.checked })} />
+                      Shuffle options
+                    </label>
+                    <label className="flex items-center gap-3 px-4 py-3 rounded-2xl border border-slate-200 md:col-span-2">
+                      <input type="checkbox" checked={examForm.enableSecurity} onChange={(e) => setExamForm({ ...examForm, enableSecurity: e.target.checked })} />
+                      Enable exam security (anti-copy, fullscreen, tab detection)
+                    </label>
+                  </div>
+
+                  <div className="flex justify-end gap-3 pt-2">
+                    <button type="button" className="px-4 py-2 rounded-xl border border-slate-200 text-slate-600" onClick={() => setShowForm(false)}>
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={submitting}
+                      className="px-4 py-2 rounded-xl bg-blue-600 text-white font-semibold disabled:opacity-60"
+                    >
+                      {submitting ? "Saving..." : editingId ? "Update Exam" : "Create Exam"}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+
+          {showQuestionSelector && (
+            <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-50">
+              <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl p-6 space-y-4 max-h-[90vh] overflow-y-auto">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-xl font-semibold text-slate-800">Select Questions</h3>
+                    <p className="text-slate-500 text-sm">Choose questions for this exam</p>
+                  </div>
+                  <button className="text-slate-400 hover:text-slate-600" onClick={() => setShowQuestionSelector(false)}>✕</button>
+                </div>
+
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    className="px-4 py-2 rounded-xl bg-blue-100 text-blue-600 text-sm font-semibold hover:bg-blue-200"
+                    onClick={() => setExamForm({ ...examForm, selectedQuestions: questions.map(q => q._id) })}
+                  >
+                    Select All ({questions.length})
+                  </button>
+                  <button
+                    type="button"
+                    className="px-4 py-2 rounded-xl border border-slate-200 text-slate-600 text-sm font-semibold hover:bg-slate-50"
+                    onClick={() => setExamForm({ ...examForm, selectedQuestions: [] })}
+                  >
+                    Deselect All
+                  </button>
+                </div>
+
+                <div className="space-y-3">
+                  {questions.map((q) => (
+                    <div
+                      key={q._id}
+                      className={`p-4 rounded-xl border cursor-pointer transition ${
+                        examForm.selectedQuestions.includes(q._id)
+                          ? "border-blue-500 bg-blue-50"
+                          : "border-slate-200 hover:bg-slate-50"
+                      }`}
+                      onClick={() => {
+                        if (examForm.selectedQuestions.includes(q._id)) {
+                          setExamForm({
+                            ...examForm,
+                            selectedQuestions: examForm.selectedQuestions.filter((id) => id !== q._id),
+                          });
+                        } else {
+                          setExamForm({
+                            ...examForm,
+                            selectedQuestions: [...examForm.selectedQuestions, q._id],
+                          });
+                        }
+                      }}
+                    >
+                      <div className="flex items-start gap-3">
+                        <input
+                          type="checkbox"
+                          checked={examForm.selectedQuestions.includes(q._id)}
+                          onChange={() => {}}
+                          className="mt-1"
+                        />
+                        <div className="flex-1">
+                          <p className="text-sm text-slate-500">{q.subject} · {q.difficulty}</p>
+                          <p className="text-slate-800">{q.question}</p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="flex justify-end gap-3 pt-2 border-t">
+                  <button className="px-4 py-2 rounded-xl border border-slate-200 text-slate-600" onClick={() => setShowQuestionSelector(false)}>
+                    Cancel
+                  </button>
+                  <button
+                    className="px-4 py-2 rounded-xl bg-blue-600 text-white font-semibold"
+                    onClick={() => setShowQuestionSelector(false)}
+                  >
+                    Done ({examForm.selectedQuestions.length} selected)
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {deleteId && (
+            <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-50">
+              <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 space-y-4">
+                <h3 className="text-lg font-semibold text-slate-800">Confirm Delete</h3>
+                <p className="text-slate-500 text-sm">Are you sure you want to delete this exam? This action cannot be undone.</p>
+                <div className="flex justify-end gap-3">
+                  <button className="px-4 py-2 rounded-xl border border-slate-200 text-slate-600" onClick={() => setDeleteId(null)}>Cancel</button>
+                  <button className="px-4 py-2 rounded-xl bg-red-600 text-white font-semibold" onClick={handleDelete}>Delete</button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    function ManageCourses() {
+      const { showNotification } = useNotification();
+      const [courseMappings, setCourseMappings] = useState(() => getCourseMappings());
+      const [showForm, setShowForm] = useState(false);
+      const [editingId, setEditingId] = useState(null);
+      const [formData, setFormData] = useState({ qualification: "", courses: "" });
+
+      const handleSave = () => {
+        const coursesArray = formData.courses.split(",").map(c => c.trim()).filter(c => c);
+        if (!formData.qualification || coursesArray.length === 0) {
+          showNotification("Please fill all fields", "error");
+          return;
+        }
+
+        let newMappings;
+        if (editingId !== null) {
+          newMappings = courseMappings.map((m, i) => 
+            i === editingId ? { qualification: formData.qualification, courses: coursesArray } : m
+          );
+          showNotification("Course mapping updated!", "success");
+        } else {
+          newMappings = [...courseMappings, { qualification: formData.qualification, courses: coursesArray }];
+          showNotification("Course mapping added!", "success");
+        }
+
+        setCourseMappings(newMappings);
+        localStorage.setItem("courseMappings", JSON.stringify(newMappings));
+        setFormData({ qualification: "", courses: "" });
+        setEditingId(null);
+        setShowForm(false);
+      };
+
+      const handleEdit = (index) => {
+        setFormData({ 
+          qualification: courseMappings[index].qualification, 
+          courses: courseMappings[index].courses.join(", ") 
+        });
+        setEditingId(index);
+        setShowForm(true);
+      };
+
+      const handleDelete = (index) => {
+        const newMappings = courseMappings.filter((_, i) => i !== index);
+        setCourseMappings(newMappings);
+        localStorage.setItem("courseMappings", JSON.stringify(newMappings));
+        showNotification("Course mapping deleted!", "success");
+      };
+
+      return (
+        <div className="space-y-6">
+          <div className="flex justify-between items-center">
+            <div>
+              <h1 className="text-2xl font-bold text-slate-800">Course Mappings</h1>
+              <p className="text-slate-500">Configure course recommendations based on highest qualification</p>
+            </div>
+            <button
+              className="px-4 py-2 rounded-xl bg-blue-600 text-white font-semibold shadow hover:bg-blue-700"
+              onClick={() => { setFormData({ qualification: "", courses: "" }); setEditingId(null); setShowForm(true); }}
+            >
+              + Add Mapping
+            </button>
+          </div>
+
+          {showForm && (
+            <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
+              <h3 className="text-xl font-semibold text-slate-800 mb-4">{editingId !== null ? "Edit Mapping" : "Add New Mapping"}</h3>
+              <div className="space-y-4">
+                <div>
+                  <label className="text-xs uppercase tracking-wide text-slate-500">Highest Qualification</label>
+                  <select
+                    value={formData.qualification}
+                    onChange={(e) => setFormData({ ...formData, qualification: e.target.value })}
+                    className="w-full mt-1 px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 h-10"
+                  >
+                    <option value="">Select qualification</option>
+                    <option value="10th">10th</option>
+                    <option value="12th">12th</option>
+                    <option value="Graduate">Graduate</option>
+                    <option value="Post Graduate">Post Graduate</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs uppercase tracking-wide text-slate-500">Courses (comma-separated)</label>
+                  <input
+                    value={formData.courses}
+                    onChange={(e) => setFormData({ ...formData, courses: e.target.value })}
+                    className="w-full mt-1 px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500"
+                    placeholder="DCA, BCA, PGDCA, Tally, Busy, DTP"
+                  />
+                  <p className="text-sm text-slate-500 mt-1">Example: DCA, BCA, PGDCA</p>
+                </div>
+                <div className="flex gap-3">
+                  <button
+                    className="px-4 py-2 rounded-xl bg-blue-600 text-white font-semibold hover:bg-blue-700"
+                    onClick={handleSave}
+                  >
+                    Save
+                  </button>
+                  <button
+                    className="px-4 py-2 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50"
+                    onClick={() => { setShowForm(false); setEditingId(null); setFormData({ qualification: "", courses: "" }); }}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className="table-scroll border border-slate-200 rounded-2xl bg-white shadow-sm">
+            <table className="w-full text-left">
+              <thead className="bg-slate-100 text-xs uppercase tracking-wide text-slate-600">
+                <tr>
+                  <th className="px-4 py-3">Qualification</th>
+                  <th className="px-4 py-3">Recommended Courses</th>
+                  <th className="px-4 py-3">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="text-sm">
+                {courseMappings.map((mapping, index) => (
+                  <tr key={index} className="border-t border-slate-100 hover:bg-slate-50">
+                    <td className="px-4 py-3 text-slate-700 font-semibold">{mapping.qualification}</td>
+                    <td className="px-4 py-3 text-slate-700">{mapping.courses.join(", ")}</td>
+                    <td className="px-4 py-3">
+                      <div className="flex gap-2">
+                        <button
+                          className="px-3 py-1 text-sm rounded-lg bg-blue-100 text-blue-600 hover:bg-blue-200"
+                          onClick={() => handleEdit(index)}
+                        >
+                          Edit
+                        </button>
+                        <button
+                          className="px-3 py-1 text-sm rounded-lg bg-red-100 text-red-600 hover:bg-red-200"
+                          onClick={() => handleDelete(index)}
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      );
+    }
+
+    function ViewResults() {
+      const { branding } = useBranding();
+      const { showNotification } = useNotification();
+      const [results, setResults] = useState([]);
+      const [deleteId, setDeleteId] = useState(null);
+      const [search, setSearch] = useState("");
+
+      const fetchResults = useCallback(() => {
+        api.get("/results", { params: { search: search.trim() || undefined } }).then((res) => {
+          setResults(res.data.results || []);
+        });
+      }, [search]);
+
+      useEffect(() => {
+        fetchResults();
+      }, [fetchResults]);
+
+      const handleDeleteResult = async () => {
+        try {
+          await api.delete(`/results/${deleteId}`);
+          setDeleteId(null);
+          fetchResults();
+          showNotification("Result deleted successfully!", "success");
+        } catch (err) {
+          showNotification("Failed to delete result", "error");
+        }
+      };
+
+      const escapeHtml = (value) => String(value ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/\"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+
+      const openResultDocument = (result, mode) => {
+        const popup = window.open("", "_blank", "width=900,height=700");
+        if (!popup) {
+          alert("Please allow popups to print/download result");
+          return;
+        }
+
+        const studentName = escapeHtml(result.student?.name || "N/A");
+        const studentId = escapeHtml(result.student?.studentId || "N/A");
+        const highestQualification = result.student?.highestQualification || "";
+        const examTitle = escapeHtml(result.exam?.title || "N/A");
+        const score = escapeHtml(String(result.totalScore ?? 0)) + "/" + escapeHtml(String(result.totalMarks ?? 0));
+        const percentage = escapeHtml(String(result.percentage ?? 0)) + "%";
+        const status = result.passed ? "Pass" : "Fail";
+        const statusColor = result.passed ? "green" : "red";
+        
+        // Courses mapping based on highest qualification
+        const coursesMap = {
+          "10th": ["DCA", "Tally", "Busy", "DTP"],
+          "12th": ["DCA", "BCA", "Tally", "Busy", "DTP"],
+          "Graduate": ["PGDCA", "Tally", "Busy", "DTP"],
+          "Post Graduate": ["PGDCA", "Tally", "Busy"],
+          "default": ["DCA", "BCA", "PGDCA", "Tally", "Busy", "DTP"]
+        };
+        const courses = coursesMap[highestQualification] || coursesMap["default"];
+        const formatDate = (date) => {
+          if (!date) return "N/A";
+          const d = new Date(date);
+          if (isNaN(d.getTime())) return "Invalid Date";
+          const day = String(d.getDate()).padStart(2, "0");
+          const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+          const month = months[d.getMonth()];
+          const year = d.getFullYear();
+          return `${day}-${month}-${year}`;
+        };
+        const generatedOn = formatDate(new Date());
+        const instituteName = escapeHtml(branding.instituteName || "Genius Computer Education");
+        const instituteAddress = escapeHtml(branding.address || "");
+        const logoUrl = escapeHtml(branding.logoUrl || "");
+        const referenceNo = escapeHtml("GCE-" + new Date().toISOString().slice(0, 10).replace(/-/g, "") + "-" + String(result._id || "NA").slice(-6).toUpperCase());
+        const principalName = escapeHtml(branding.principalName || "Principal");
+        const resultInstructions = escapeHtml(branding.resultInstructions || "");
+
+        const doc = popup.document;
+        doc.open();
+        doc.write('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>' + examTitle + ' - Result</title>');
+        doc.write('<style>');
+        doc.write('@page { size: A4; margin: 16mm; }');
+        doc.write('body { font-family: Arial, sans-serif; margin: 0; padding: 20px; }');
+        doc.write('.a4 { width: 210mm; min-height: 297mm; margin: 0 auto; background: white; padding: 20px; border: 1px solid #ccc; position: relative; }');
+        doc.write('.header { border-bottom: 3px solid #1d4ed8; padding-bottom: 15px; margin-bottom: 20px; text-align: center; position: relative; }');
+        doc.write('.header-content { display: flex; align-items: center; gap: 20px; }');
+        doc.write('.header-left { flex: 1; display: flex; justify-content: flex-start; }');
+        doc.write('.header-center { flex: 1; display: flex; flex-direction: column; align-items: center; }');
+        doc.write('.header-right { flex: 1; }');
+        doc.write('.logo { height: 100px; max-width: 180px; object-fit: contain; }');
+        doc.write('.title { font-size: 40px; font-weight: bold; color: #1e3a8a; margin: 0; line-height: 1.1; white-space: nowrap; }');
+        doc.write('.subtitle { color: #666; margin: 5px 0 0; font-size: 14px; }');
+        doc.write('.address { color: #555; font-size: 12px; margin-top: 8px; }');
+        doc.write('.section { margin: 20px 0; }');
+        doc.write('.section h3 { color: #333; border-bottom: 1px solid #ddd; padding-bottom: 5px; }');
+        doc.write('.grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }');
+        doc.write('.card { background: #f9f9f9; padding: 15px; border-radius: 8px; border: 1px solid #eee; }');
+        doc.write('.label { font-size: 12px; color: #666; text-transform: uppercase; }');
+        doc.write('.value { font-size: 18px; font-weight: bold; color: #333; margin-top: 5px; }');
+        doc.write('.status-pass { color: #16a34a; }');
+        doc.write('.status-fail { color: #dc2626; }');
+        doc.write('.footer { margin-top: 30px; border-top: 1px dashed #ccc; padding-top: 15px; font-size: 12px; color: #666; }');
+        doc.write('.signature { margin-top: 40px; text-align: right; }');
+        doc.write('.signature-line { border-top: 1px solid #333; padding-top: 10px; display: inline-block; min-width: 200px; }');
+        doc.write('.watermark { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(-45deg); width: 300px; height: 300px; opacity: 0.08; z-index: 0; }');
+        doc.write('.watermark img { width: 100%; height: 100%; object-fit: contain; }');
+        doc.write('.courses-box { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 15px; border-radius: 12px; }');
+        doc.write('.courses-title { color: white; font-size: 14px; font-weight: bold; margin-bottom: 12px; text-align: center; }');
+        doc.write('.courses-list { display: flex; flex-direction: column; gap: 8px; }');
+        doc.write('.course-item { background: rgba(255, 255, 255, 0.9); padding: 6px 10px; border-radius: 4px; font-size: 12px; font-weight: 600; color: #333; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }');
+        doc.write('.instructions-courses { display: grid; grid-template-columns: 4fr 1fr; gap: 20px; }');
+        doc.write('@media print { body { background: white; } .a4 { border: none; } }');
+        doc.write('</style></head><body>');
+        doc.write('<div class="a4">');
+        doc.write('<div class="watermark">' + (logoUrl ? '<img src="' + logoUrl + '" alt="Logo" />' : '') + '</div>');
+        doc.write('<div class="header">');
+        doc.write('<div class="header-content">');
+        doc.write('<div class="header-left">');
+        if (logoUrl) {
+          doc.write('<img src="' + logoUrl + '" alt="Logo" class="logo" />');
+        }
+        doc.write('</div>');
+        doc.write('<div class="header-center">');
+        doc.write('<h1 class="title">' + instituteName + '</h1>');
+        doc.write('<p class="subtitle">Entrance Examination Result Sheet</p>');
+        if (instituteAddress) {
+          doc.write('<p class="address">' + instituteAddress + '</p>');
+        }
+        doc.write('</div>');
+        doc.write('<div class="header-right"></div>');
+        doc.write('</div>');
+        doc.write('</div>');
+
+        doc.write('<div class="section"><h3>Student Details</h3>');
+        doc.write('<div class="grid">');
+        doc.write('<div class="card"><div class="label">Student Name</div><div class="value">' + studentName + '</div></div>');
+        doc.write('<div class="card"><div class="label">Student ID</div><div class="value">' + studentId + '</div></div>');
+        doc.write('</div></div>');
+
+        doc.write('<div class="section"><h3>Exam Details</h3>');
+        doc.write('<div class="grid">');
+        doc.write('<div class="card"><div class="label">Exam Title</div><div class="value">' + examTitle + '</div></div>');
+        doc.write('<div class="card"><div class="label">Generated On</div><div class="value">' + escapeHtml(generatedOn) + '</div></div>');
+        doc.write('</div></div>');
+
+        doc.write('<div class="section"><h3>Performance Summary</h3>');
+        doc.write('<div class="grid">');
+        doc.write('<div class="card"><div class="label">Score</div><div class="value">' + score + '</div></div>');
+        doc.write('<div class="card"><div class="label">Percentage</div><div class="value">' + percentage + '</div></div>');
+        doc.write('<div class="card"><div class="label">Recommended Courses</div><div class="value" style="font-size: 14px; font-weight: 500;">' + courses.join(", ") + '</div></div>');
+        doc.write('</div></div>');
+
+        doc.write('<div class="section"><h3>Reference Number</h3>');
+        doc.write('<p style="font-size: 18px; font-weight: bold; color: #333;">' + referenceNo + '</p>');
+        doc.write('<p style="font-size: 12px; color: #666;">Use this reference for verification in admin records.</p>');
+        doc.write('</div>');
+
+        doc.write('<div class="signature">');
+        doc.write('<div class="signature-line">' + principalName + '</div>');
+        doc.write('</div>');
+
+        if (resultInstructions) {
+          doc.write('<div class="section"><h3>Instructions</h3>');
+          doc.write('<div class="instructions-courses">');
+          doc.write('<div>');
+          doc.write('<p style="font-size: 14px; color: #555; line-height: 1.6; background: #fff3cd; padding: 15px; border-radius: 8px; border-left: 4px solid #ffc107;">' + resultInstructions + '</p>');
+          doc.write('</div>');
+          doc.write('<div class="courses-box">');
+          doc.write('<div class="courses-title">Recommended Courses</div>');
+          doc.write('<div class="courses-list">');
+          courses.forEach((course) => {
+            doc.write('<div class="course-item">' + escapeHtml(course) + '</div>');
+          });
+          doc.write('</div>');
+          doc.write('</div>');
+          doc.write('</div>');
+          doc.write('</div>');
+        }
+
+        doc.write('<div class="footer">');
+        doc.write('<span>' + instituteName + '</span>');
+        doc.write('<span>Admin Panel Export</span>');
+        doc.write('</div>');
+
+        doc.write('</div>');
+        doc.write('<script>window.onload = function() { window.print(); }<\/script>');
+        doc.write('</body></html>');
+        doc.close();
+      };
+
+      return (
+        <div className="space-y-6">
+          <div>
+            <h1 className="text-2xl font-bold text-slate-800">Results & Analytics</h1>
+            <p className="text-slate-500">Track student attempts and download scorecards.</p>
+          </div>
+
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4">
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none"
+              placeholder="Search by student name or student ID"
+            />
+          </div>
+
+          <div className="table-scroll border border-slate-200 rounded-2xl bg-white shadow-sm">
+            <table className="w-full text-left">
+              <thead className="bg-slate-100 text-xs uppercase tracking-wide text-slate-600">
+                <tr>
+                  <th className="px-4 py-3">Student</th>
+                  <th className="px-4 py-3">Exam</th>
+                  <th className="px-4 py-3">Score</th>
+                  <th className="px-4 py-3">Percentage</th>
+                  <th className="px-4 py-3">Status</th>
+                  <th className="px-4 py-3">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="text-sm">
+                {results.map((r) => (
+                  <tr key={r._id} className="border-t border-slate-100 hover:bg-slate-50">
+                    <td className="px-4 py-3 text-slate-700">
+                      <div className="font-medium">{r.student?.name || "N/A"}</div>
+                      <div className="text-xs text-slate-500">ID: {r.student?.studentId || "N/A"}</div>
+                    </td>
+                    <td className="px-4 py-3 text-slate-700">{r.exam?.title || "N/A"}</td>
+                    <td className="px-4 py-3 text-slate-700">{`${r.totalScore}/${r.totalMarks}`}</td>
+                    <td className="px-4 py-3 text-slate-700">{r.percentage}%</td>
+                    <td className={`px-4 py-3 font-semibold ${r.passed ? "text-green-600" : "text-red-600"}`}>
+                      {r.passed ? "Pass" : "Fail"}
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex gap-2">
+                        <button
+                          className="px-3 py-1 text-xs rounded-lg bg-slate-100 text-slate-700 border border-slate-200 hover:bg-slate-200"
+                          onClick={() => openResultDocument(r, "print")}
+                        >
+                          Print
+                        </button>
+                        <button
+                          className="px-3 py-1 text-xs rounded-lg bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100"
+                          onClick={() => openResultDocument(r, "pdf")}
+                        >
+                          Download PDF
+                        </button>
+                        <button
+                          className="px-3 py-1 text-xs rounded-lg bg-red-50 text-red-700 border border-red-200 hover:bg-red-100"
+                          onClick={() => setDeleteId(r._id)}
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+                {results.length === 0 && (
+                  <tr>
+                    <td className="px-4 py-6 text-slate-500" colSpan="6">No results found.</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          {deleteId && (
+            <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-50">
+              <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-4">
+                <h3 className="text-xl font-semibold text-slate-800">Delete Result</h3>
+                <p className="text-slate-500">Are you sure you want to delete this result? This action cannot be undone.</p>
+                <div className="flex justify-end gap-3 pt-2">
+                  <button className="px-4 py-2 rounded-xl border border-slate-200 text-slate-600" onClick={() => setDeleteId(null)}>Cancel</button>
+                  <button className="px-4 py-2 rounded-xl bg-red-600 text-white font-semibold" onClick={handleDeleteResult}>Delete</button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    function Settings() {
+      const { branding, updateBranding } = useBranding();
+      const { showNotification } = useNotification();
+      const [form, setForm] = useState(branding);
+      const [uploading, setUploading] = useState(false);
+
+      useEffect(() => {
+        setForm(branding);
+      }, [branding]);
+
+      const handleSaveAll = async (e) => {
+        e.preventDefault();
+        try {
+          await updateBranding({
+            instituteName: form.instituteName,
+            address: form.address,
+            principalName: form.principalName,
+            certificateFooter: form.certificateFooter,
+            resultInstructions: form.resultInstructions,
+          });
+          showNotification("Settings saved successfully!", "success");
+        } catch (err) {
+          showNotification("Failed to save settings", "error");
+        }
+      };
+
+      const handleLogoUpload = async (event) => {
+        const input = event.target;
+        const file = input.files?.[0];
+        if (!file) return;
+        if (file.size > 1024 * 1024 * 2) {
+          alert("Please select an image smaller than 2MB");
+          return;
+        }
+        setUploading(true);
+        try {
+          const base64 = await fileToBase64(file);
+          await updateBranding({ logoUrl: base64 });
+          showNotification("Logo updated successfully!", "success");
+        } catch (err) {
+          alert("Unable to process logo");
+        } finally {
+          setUploading(false);
+          input.value = "";
+        }
+      };
+
+      const handleSignatureUpload = async (event) => {
+        const input = event.target;
+        const file = input.files?.[0];
+        if (!file) return;
+        if (file.size > 1024 * 1024 * 2) {
+          alert("Please select an image smaller than 2MB");
+          return;
+        }
+        setUploading(true);
+        try {
+          const base64 = await fileToBase64(file);
+          await updateBranding({ signatureUrl: base64 });
+          showNotification("Signature updated successfully!", "success");
+        } catch (err) {
+          alert("Unable to process signature");
+        } finally {
+          setUploading(false);
+          input.value = "";
+        }
+      };
+
+      return (
+        <div className="space-y-6">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            <div>
+              <h1 className="text-2xl font-bold text-slate-800">Institute Branding</h1>
+              <p className="text-slate-500">Customize logo, certificate text and institute identity.</p>
+            </div>
+            <button onClick={handleSaveAll} className="px-6 py-3 rounded-xl bg-blue-600 text-white font-semibold shadow hover:bg-blue-700 transition">
+              Save All Settings
+            </button>
+          </div>
+
+          <div className="flex items-center gap-3 bg-white border border-slate-200 rounded-2xl px-4 py-2 shadow-sm">
+            {branding.logoUrl && (
+              <>
+                <img src={branding.logoUrl} alt="Institute logo" className="h-12 w-12 object-contain" />
+                <button
+                  className="text-sm text-red-500 hover:text-red-600"
+                  onClick={async () => {
+                    try {
+                      await updateBranding({ logoUrl: "" });
+                      showNotification("Logo removed successfully!", "success");
+                    } catch (err) {
+                      showNotification("Failed to remove logo", "error");
+                    }
+                  }}
+                >
+                  Remove Logo
+                </button>
+              </>
+            )}
+            {branding.signatureUrl && (
+              <>
+                <img src={branding.signatureUrl} alt="Signature" className="h-12 w-auto object-contain" />
+                <button
+                  className="text-sm text-red-500 hover:text-red-600"
+                  onClick={async () => {
+                    try {
+                      await updateBranding({ signatureUrl: "" });
+                      showNotification("Signature removed successfully!", "success");
+                    } catch (err) {
+                      showNotification("Failed to remove signature", "error");
+                    }
+                  }}
+                >
+                  Remove Signature
+                </button>
+              </>
+            )}
+          </div>
+
+          <div className="grid md:grid-cols-2 gap-6">
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 space-y-4">
+              <h3 className="text-lg font-semibold">Institute Info</h3>
+              <div>
+                <label className="text-xs uppercase tracking-wide text-slate-500">Institute Name</label>
+                <input
+                  className="w-full mt-1 px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500"
+                  placeholder="Institute Name"
+                  value={form.instituteName}
+                  onChange={(e) => setForm({ ...form, instituteName: e.target.value })}
+                />
+              </div>
+              <div>
+                <label className="text-xs uppercase tracking-wide text-slate-500">Address</label>
+                <textarea
+                  className="w-full mt-1 px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500"
+                  placeholder="Address"
+                  rows="3"
+                  value={form.address}
+                  onChange={(e) => setForm({ ...form, address: e.target.value })}
+                ></textarea>
+              </div>
+              <div>
+                <label className="text-xs uppercase tracking-wide text-slate-500">Principal Name</label>
+                <input
+                  className="w-full mt-1 px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500"
+                  placeholder="Principal Name"
+                  value={form.principalName || ""}
+                  onChange={(e) => setForm({ ...form, principalName: e.target.value })}
+                />
+              </div>
+            </div>
+
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 space-y-4">
+              <h3 className="text-lg font-semibold">Certificate Footer</h3>
+              <textarea
+                className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500"
+                rows="5"
+                value={form.certificateFooter}
+                onChange={(e) => setForm({ ...form, certificateFooter: e.target.value })}
+              ></textarea>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 space-y-4">
+            <h3 className="text-lg font-semibold">Result Instructions</h3>
+            <p className="text-sm text-slate-500">Add custom instructions that will appear at the bottom of result sheets.</p>
+            <div className="border border-slate-200 rounded-2xl overflow-hidden focus-within:ring-2 focus-within:ring-blue-500">
+              <div className="flex gap-1 p-2 bg-slate-50 border-b border-slate-200">
+                <button type="button" onClick={(e) => { e.preventDefault(); document.execCommand('bold', false, null); }} className="px-3 py-1 text-sm font-semibold rounded hover:bg-slate-200" title="Bold">B</button>
+                <button type="button" onClick={(e) => { e.preventDefault(); document.execCommand('italic', false, null); }} className="px-3 py-1 text-sm italic rounded hover:bg-slate-200" title="Italic">I</button>
+                <button type="button" onClick={(e) => { e.preventDefault(); document.execCommand('underline', false, null); }} className="px-3 py-1 text-sm underline rounded hover:bg-slate-200" title="Underline">U</button>
+                <button type="button" onClick={(e) => { e.preventDefault(); document.execCommand('subscript', false, null); }} className="px-3 py-1 text-sm rounded hover:bg-slate-200" title="Subscript">X₂</button>
+                <button type="button" onClick={(e) => { e.preventDefault(); document.execCommand('superscript', false, null); }} className="px-3 py-1 text-sm rounded hover:bg-slate-200" title="Superscript">X²</button>
+                <button type="button" onClick={(e) => { e.preventDefault(); document.execCommand('insertUnorderedList', false, null); }} className="px-3 py-1 text-sm rounded hover:bg-slate-200" title="Bullet List">• List</button>
+                <button type="button" onClick={(e) => { e.preventDefault(); document.execCommand('insertOrderedList', false, null); }} className="px-3 py-1 text-sm rounded hover:bg-slate-200" title="Numbered List">1. List</button>
+                <button type="button" onClick={(e) => { e.preventDefault(); document.execCommand('justifyLeft', false, null); }} className="px-3 py-1 text-sm rounded hover:bg-slate-200" title="Align Left">←</button>
+                <button type="button" onClick={(e) => { e.preventDefault(); document.execCommand('justifyCenter', false, null); }} className="px-3 py-1 text-sm rounded hover:bg-slate-200" title="Align Center">↔</button>
+                <button type="button" onClick={(e) => { e.preventDefault(); document.execCommand('justifyRight', false, null); }} className="px-3 py-1 text-sm rounded hover:bg-slate-200" title="Align Right">→</button>
+              </div>
+              <div
+                contentEditable
+                suppressContentEditableWarning
+                onInput={(e) => setForm({ ...form, resultInstructions: e.target.innerHTML })}
+                className="w-full px-4 py-3 min-h-[100px] focus:outline-none"
+                dangerouslySetInnerHTML={{ __html: form.resultInstructions || "" }}
+              ></div>
+            </div>
+          </div>
+
+          <div className="grid md:grid-cols-2 gap-6">
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 space-y-4">
+              <h3 className="text-lg font-semibold">Logo Upload</h3>
+              <p className="text-sm text-slate-500">PNG, JPG or SVG up to 2MB. Transparent background recommended.</p>
+              <label className="flex flex-col items-center justify-center border-2 border-dashed border-slate-300 rounded-2xl px-6 py-10 cursor-pointer hover:border-blue-400">
+                {uploading ? (
+                  <span className="text-blue-600 font-semibold">Uploading...</span>
+                ) : (
+                  <>
+                    <span className="text-lg font-semibold text-slate-700">Drop logo here</span>
+                    <span className="text-sm text-slate-500">or click to browse</span>
+                  </>
+                )}
+                <input type="file" className="hidden" accept="image/*" onChange={handleLogoUpload} />
+              </label>
+            </div>
+
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 space-y-4">
+              <h3 className="text-lg font-semibold">Signature Upload</h3>
+              <p className="text-sm text-slate-500">PNG, JPG up to 2MB. Transparent background recommended.</p>
+              <label className="flex flex-col items-center justify-center border-2 border-dashed border-slate-300 rounded-2xl px-6 py-10 cursor-pointer hover:border-blue-400">
+                {uploading ? (
+                  <span className="text-blue-600 font-semibold">Uploading...</span>
+                ) : (
+                  <>
+                    <span className="text-lg font-semibold text-slate-700">Drop signature here</span>
+                    <span className="text-sm text-slate-500">or click to browse</span>
+                  </>
+                )}
+                <input type="file" className="hidden" accept="image/*" onChange={handleSignatureUpload} />
+              </label>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    function StudentDashboard() {
+      const [exams, setExams] = useState([]);
+      const [loading, setLoading] = useState(true);
+      const [error, setError] = useState("");
+      
+      useEffect(() => {
+        api.get("/exams/student")
+          .then((res) => setExams(res.data || []))
+          .catch((err) => {
+            console.error("Failed to fetch exams:", err);
+            setError("Failed to load exams");
+          })
+          .finally(() => setLoading(false));
+      }, []);
+
+      return (
+        <div className="space-y-6">
+          <div>
+            <h1 className="text-2xl font-bold text-slate-800">My Exams</h1>
+            <p className="text-slate-500">Upcoming exams and recent attempts.</p>
+          </div>
+
+          {loading && <p className="text-slate-500">Loading exams...</p>}
+          {error && <p className="text-red-600">{error}</p>}
+
+          <div className="grid gap-4">
+            {exams.map((exam) => (
+              <div key={exam._id} className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
+                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                  <div>
+                    <p className="text-sm text-slate-500">{exam.subjects?.join(", ") || "N/A"}</p>
+                    <h3 className="text-xl font-semibold text-slate-800">{exam.title}</h3>
+                    <p className="text-xs text-slate-500 mt-1">Status: {exam.status || "N/A"}</p>
+                  </div>
+                  <div className="text-sm text-slate-500">
+                    {formatDate(exam.startTime)} → {formatDate(exam.endTime)}
+                  </div>
+                  <div className="flex gap-3">
+                    {exam.attempted ? (
+                      <span className="px-3 py-1 rounded-full text-sm bg-green-100 text-green-600">Submitted</span>
+                    ) : (
+                      <Link
+                        className="px-4 py-2 rounded-xl bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700"
+                        to={`/student/exam/${exam._id}`}
+                      >
+                        Start Exam
+                      </Link>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
+            {!loading && exams.length === 0 && <p className="text-slate-500">No exams assigned yet.</p>}
+          </div>
+        </div>
+      );
+    }
+
+    function ExamPage() {
+      const { user } = useAuth();
+      const { id } = ReactRouterDOM.useParams();
+      const [exam, setExam] = useState(null);
+      const [answers, setAnswers] = useState({});
+      const [showInstructions, setShowInstructions] = useState(true);
+      const [instructionsAccepted, setInstructionsAccepted] = useState(false);
+      const [currentQuestion, setCurrentQuestion] = useState(0);
+      const [timeLeft, setTimeLeft] = useState(0);
+      const [tabSwitchCount, setTabSwitchCount] = useState(0);
+      const [showWarning, setShowWarning] = useState(false);
+      const [idleTime, setIdleTime] = useState(0);
+      const [showResult, setShowResult] = useState(false);
+      const [resultData, setResultData] = useState(null);
+      const navigate = useNavigate();
+
+      useEffect(() => {
+        localStorage.setItem(`exam_${id}_active`, Date.now().toString());
+        const checkMultipleTabs = setInterval(() => {
+          const activeTime = localStorage.getItem(`exam_${id}_active`);
+          if (activeTime && Date.now() - parseInt(activeTime) > 5000) {
+            console.log("Multiple tab detected");
+            localStorage.setItem(`exam_${id}_active`, Date.now().toString());
+          }
+        }, 1000);
+
+        return () => {
+          clearInterval(checkMultipleTabs);
+          localStorage.removeItem(`exam_${id}_active`);
+        };
+      }, [id, navigate]);
+
+      useEffect(() => {
+        api.get(`/exams/${id}/start`).then((res) => {
+          setExam(res.data);
+          const initialAnswers = {};
+          res.data.questions.forEach((q) => (initialAnswers[q.id] = null));
+          setAnswers(initialAnswers);
+        }).catch((err) => alert(err.response?.data?.message || "Unable to start exam"));
+      }, [id]);
+
+      useEffect(() => {
+        if (exam && !showInstructions) {
+          setTimeLeft(exam.durationMinutes * 60);
+        }
+      }, [exam, showInstructions]);
+
+      useEffect(() => {
+        let timer;
+        if (timeLeft > 0 && !showInstructions) {
+          timer = setInterval(() => {
+            setTimeLeft((prev) => {
+              if (prev <= 1) {
+                handleSubmit();
+                return 0;
+              }
+              return prev - 1;
+            });
+          }, 1000);
+        }
+        return () => clearInterval(timer);
+      }, [timeLeft, showInstructions]);
+
+      useEffect(() => {
+        // Idle timeout disabled to prevent unwanted exam termination
+        // Uncomment below to enable idle timeout
+        /*
+        let idleTimer;
+        if (!showInstructions) {
+          const resetIdleTimer = () => {
+            setIdleTime(0);
+          };
+
+          const events = ['mousemove', 'keydown', 'click', 'scroll'];
+          events.forEach(event => {
+            window.addEventListener(event, resetIdleTimer);
+          });
+
+          idleTimer = setInterval(() => {
+            setIdleTime((prev) => {
+              if (prev >= 300) { // 5 minutes idle
+                alert("You have been inactive for 5 minutes. Exam will be submitted automatically.");
+                handleSubmit();
+                return 0;
+              }
+              return prev + 1;
+            });
+          }, 1000);
+
+          return () => {
+            clearInterval(idleTimer);
+            events.forEach(event => {
+              window.removeEventListener(event, resetIdleTimer);
+            });
+          };
+        }
+        */
+      }, [showInstructions]);
+
+      useEffect(() => {
+        const handleVisibilityChange = () => {
+          if (document.hidden && !showInstructions && exam.enableSecurity !== false) {
+            setTabSwitchCount((prev) => prev + 1);
+            setShowWarning(true);
+            setTimeout(() => setShowWarning(false), 3000);
+          }
+        };
+
+        const handleCopyPaste = (e) => {
+          if (!showInstructions && exam.enableSecurity !== false) {
+            e.preventDefault();
+            alert("Copy-paste is disabled during exam");
+          }
+        };
+
+        const handleContextMenu = (e) => {
+          if (!showInstructions && exam.enableSecurity !== false) {
+            e.preventDefault();
+          }
+        };
+
+        const handleDevTools = (e) => {
+          if (!showInstructions && exam.enableSecurity !== false) {
+            if (e.key === 'F12' || (e.ctrlKey && e.shiftKey && e.key === 'I') || (e.ctrlKey && e.shiftKey && e.key === 'C') || (e.ctrlKey && e.shiftKey && e.key === 'J')) {
+              e.preventDefault();
+              alert("Developer tools are disabled during exam");
+            }
+          }
+        };
+
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+        document.addEventListener('copy', handleCopyPaste);
+        document.addEventListener('paste', handleCopyPaste);
+        document.addEventListener('contextmenu', handleContextMenu);
+        document.addEventListener('keydown', handleDevTools);
+
+        return () => {
+          document.removeEventListener('visibilitychange', handleVisibilityChange);
+          document.removeEventListener('copy', handleCopyPaste);
+          document.removeEventListener('paste', handleCopyPaste);
+          document.removeEventListener('contextmenu', handleContextMenu);
+          document.removeEventListener('keydown', handleDevTools);
+        };
+      }, [showInstructions, exam]);
+
+      const handleStartExam = () => {
+        setShowInstructions(false);
+        setInstructionsAccepted(true);
+        if (exam.enableSecurity !== false) {
+          try {
+            document.documentElement.requestFullscreen().catch(() => {
+              console.log("Fullscreen not supported or denied");
+            });
+          } catch (e) {
+            console.log("Fullscreen not supported");
+          }
+        }
+      };
+
+      const handlePrevious = () => {
+        if (currentQuestion > 0) {
+          setCurrentQuestion(currentQuestion - 1);
+        }
+      };
+
+      const handleNext = () => {
+        if (currentQuestion < exam.questions.length - 1) {
+          setCurrentQuestion(currentQuestion + 1);
+        }
+      };
+
+      const handleJumpToQuestion = (index) => {
+        setCurrentQuestion(index);
+      };
+
+      const formatTime = (seconds) => {
+        const mins = Math.floor(seconds / 60);
+        const secs = seconds % 60;
+        return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+      };
+
+      if (!exam) return <div>Loading exam...</div>;
+
+      if (showInstructions) {
+        return (
+          <div className="space-y-6">
+            <div className="bg-white rounded-2xl border border-slate-200 p-6">
+              <h1 className="text-2xl font-bold text-slate-800 mb-4">Exam Instructions</h1>
+              <div className="space-y-4 text-slate-600">
+                <div className="p-4 bg-blue-50 rounded-xl">
+                  <h3 className="font-semibold text-slate-800 mb-2">Exam Details</h3>
+                  <p><strong>Title:</strong> {exam.title}</p>
+                  <p><strong>Duration:</strong> {exam.durationMinutes} minutes</p>
+                  <p><strong>Total Questions:</strong> {exam.totalQuestions}</p>
+                  <p><strong>Marks per Question:</strong> {exam.marksPerQuestion}</p>
+                  <p><strong>Negative Marking:</strong> {exam.negativeMarking || 0} marks per wrong answer</p>
+                  <p><strong>Passing Marks:</strong> {exam.passingMarks}</p>
+                </div>
+                <div className="p-4 bg-amber-50 rounded-xl">
+                  <h3 className="font-semibold text-slate-800 mb-2">Important Instructions</h3>
+                  <ul className="list-disc list-inside space-y-1">
+                    <li>Read each question carefully before answering</li>
+                    <li>Once you submit the exam, you cannot change your answers</li>
+                    <li>Do not refresh the page during the exam</li>
+                    <li>Ensure you have a stable internet connection</li>
+                    <li>Timer will start automatically once you click "Start Exam"</li>
+                  </ul>
+                </div>
+                <div className="p-4 bg-red-50 rounded-xl">
+                  <h3 className="font-semibold text-slate-800 mb-2">Security Features</h3>
+                  {exam.enableSecurity !== false ? (
+                    <ul className="list-disc list-inside space-y-1">
+                      <li>Tab switching is monitored during the exam</li>
+                      <li>Copy-paste is disabled during exam</li>
+                      <li>Right-click is disabled during exam</li>
+                      <li>Developer tools (F12) are disabled during exam</li>
+                      <li>Fullscreen mode will be attempted on start</li>
+                      <li>Auto-submit when timer expires</li>
+                    </ul>
+                  ) : (
+                    <p>This exam is running with relaxed security settings configured by admin.</p>
+                  )}
+                </div>
+                <div className="p-4 bg-red-50 rounded-xl">
+                  <h3 className="font-semibold text-slate-800 mb-2">Warning</h3>
+                  <p>Any attempt to cheat or use unfair means will result in immediate disqualification.</p>
+                </div>
+              </div>
+              <div className="mt-6 flex gap-3">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={instructionsAccepted}
+                    onChange={(e) => setInstructionsAccepted(e.target.checked)}
+                    className="w-5 h-5 rounded"
+                  />
+                  <span className="text-slate-700">I have read and understood all instructions</span>
+                </label>
+              </div>
+              <button
+                onClick={handleStartExam}
+                disabled={!instructionsAccepted}
+                className="mt-4 px-8 py-3 rounded-xl bg-blue-600 text-white font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Start Exam
+              </button>
+            </div>
+          </div>
+        );
+      }
+
+      const handleSubmit = async () => {
+        if (!exam.resultId) {
+          alert("Exam session not found. Please start the exam again.");
+          navigate("/student");
+          return;
+        }
+
+        const answeredQuestions = Object.entries(answers).filter(([_, selectedOption]) => selectedOption !== null);
+        if (answeredQuestions.length === 0) {
+          const confirmSubmit = confirm("You haven't answered any questions. Are you sure you want to submit?");
+          if (!confirmSubmit) return;
+        }
+
+        const payload = {
+          resultId: exam.resultId,
+          answers: answeredQuestions.map(([questionId, selectedOption]) => ({ questionId, selectedOption })),
+          timeTakenMinutes: exam.durationMinutes - Math.floor(timeLeft / 60),
+        };
+        
+        console.log("Submitting exam with payload:", payload);
+        
+        try {
+          const res = await api.post("/exams/submit", payload);
+          console.log("Submission response:", res.data);
+          setResultData({
+            ...res.data,
+            showResultImmediately: res.data.showResultImmediately ?? exam.showResultImmediately !== false,
+          });
+          setShowResult(true);
+          // Auto logout after 5 seconds
+          setTimeout(() => {
+            localStorage.removeItem("token");
+            localStorage.removeItem("user");
+            delete api.defaults.headers.common["Authorization"];
+            window.location.hash = "#/login";
+            window.location.reload();
+          }, 5000);
+        } catch (err) {
+          console.error("Submission error:", err);
+          alert(err.response?.data?.message || "Submission failed");
+        }
+      };
+
+      const handleResultClose = () => {
+        setShowResult(false);
+        localStorage.removeItem("token");
+        localStorage.removeItem("user");
+        delete api.defaults.headers.common["Authorization"];
+        window.location.hash = "#/login";
+        window.location.reload();
+      };
+
+      return (
+        <>
+        <div className="space-y-6">
+          <div className="bg-white rounded-2xl border border-slate-200 p-5 flex justify-between items-center">
+            <div>
+              <h1 className="text-2xl font-bold text-slate-800">{exam.title}</h1>
+              <p className="text-slate-500">
+                Duration: {exam.durationMinutes} min · Questions: {exam.totalQuestions} · Marks/Q: {exam.marksPerQuestion}
+              </p>
+            </div>
+            <div className="text-right">
+              <p className="text-sm text-slate-500">Time Remaining</p>
+              <p className={`text-2xl font-bold ${timeLeft < 60 ? 'text-red-600' : timeLeft < 300 ? 'text-amber-600' : 'text-blue-600'}`}>
+                {formatTime(timeLeft)}
+              </p>
+            </div>
+          </div>
+
+          {showWarning && (
+            <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-red-700">
+              <p className="font-semibold">⚠️ Warning: Tab switching detected!</p>
+              <p className="text-sm">Switching tabs is not allowed during exam. Multiple violations will result in automatic submission.</p>
+              <p className="text-sm mt-1">Violations: {tabSwitchCount}/3</p>
+            </div>
+          )}
+
+          <div className="flex gap-6">
+            <div className="flex-1" style={{ userSelect: showInstructions ? 'auto' : 'none', WebkitUserSelect: showInstructions ? 'auto' : 'none' }}>
+              {exam.questions.length > 0 && (
+                <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
+                  <div className="flex justify-between items-center mb-4">
+                    <p className="text-slate-500 text-sm font-semibold">
+                      Question {currentQuestion + 1} of {exam.questions.length}
+                    </p>
+                    <div className="flex gap-2">
+                      {answers[exam.questions[currentQuestion].id] !== null && (
+                        <span className="px-2 py-1 rounded-lg text-xs bg-green-100 text-green-600">Answered</span>
+                      )}
+                    </div>
+                  </div>
+                  <p className="text-slate-800 mb-4 text-lg">{exam.questions[currentQuestion].question}</p>
+                  <div className="grid gap-3">
+                    {exam.questions[currentQuestion].options.map((opt, optIdx) => (
+                      <label
+                        key={optIdx}
+                        className={`border rounded-xl px-4 py-3 cursor-pointer transition ${
+                          answers[exam.questions[currentQuestion].id] === optIdx ? "border-blue-600 bg-blue-50" : "border-slate-200"
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          className="hidden"
+                          name={exam.questions[currentQuestion].id}
+                          value={optIdx}
+                          checked={answers[exam.questions[currentQuestion].id] === optIdx}
+                          onChange={() => setAnswers({ ...answers, [exam.questions[currentQuestion].id]: optIdx })}
+                        />
+                        {opt}
+                      </label>
+                    ))}
+                  </div>
+                  
+                  <div className="flex justify-between mt-6">
+                    <button
+                      onClick={handlePrevious}
+                      disabled={currentQuestion === 0}
+                      className="px-4 py-2 rounded-xl border border-slate-200 text-slate-600 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-slate-50"
+                    >
+                      ← Previous
+                    </button>
+                    <button
+                      onClick={handleNext}
+                      disabled={currentQuestion === exam.questions.length - 1}
+                      className="px-4 py-2 rounded-xl border border-slate-200 text-slate-600 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-slate-50"
+                    >
+                      Next →
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              <button onClick={handleSubmit} className="w-full mt-4 py-3 rounded-xl bg-green-600 text-white font-semibold">
+                Submit Exam
+              </button>
+            </div>
+
+            <div className="w-64 bg-white rounded-2xl border border-slate-200 p-4 shadow-sm h-fit">
+              <h3 className="font-semibold text-slate-800 mb-3">Question Navigator</h3>
+              <div className="grid grid-cols-5 gap-2">
+                {exam.questions.map((q, idx) => (
+                  <button
+                    key={q.id}
+                    onClick={() => handleJumpToQuestion(idx)}
+                    className={`w-10 h-10 rounded-lg text-sm font-semibold transition ${
+                      currentQuestion === idx
+                        ? "bg-blue-600 text-white"
+                        : answers[q.id] !== null
+                        ? "bg-green-100 text-green-700 border border-green-200"
+                        : "bg-slate-100 text-slate-600 border border-slate-200 hover:bg-slate-200"
+                    }`}
+                  >
+                    {idx + 1}
+                  </button>
+                ))}
+              </div>
+              <div className="mt-4 pt-4 border-t border-slate-200">
+                <div className="flex items-center gap-2 text-sm text-slate-600">
+                  <div className="w-3 h-3 rounded bg-blue-600"></div>
+                  <span>Current</span>
+                </div>
+                <div className="flex items-center gap-2 text-sm text-slate-600 mt-1">
+                  <div className="w-3 h-3 rounded bg-green-100 border border-green-200"></div>
+                  <span>Answered</span>
+                </div>
+                <div className="flex items-center gap-2 text-sm text-slate-600 mt-1">
+                  <div className="w-3 h-3 rounded bg-slate-100 border border-slate-200"></div>
+                  <span>Not Answered</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {showResult && resultData && (
+          <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-50">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-4">
+              <div className="text-center">
+                <p className="text-green-600 font-bold text-lg mb-2">Exam Submitted Successfully!</p>
+                {resultData.showResultImmediately !== false && (
+                  <>
+                    <div className={`w-20 h-20 mx-auto rounded-full flex items-center justify-center ${resultData.passed ? 'bg-green-100' : 'bg-red-100'}`}>
+                      <span className="text-4xl">{resultData.passed ? 'PASS' : 'FAIL'}</span>
+                    </div>
+                    <h2 className="text-2xl font-bold text-slate-800 mt-4">
+                      {resultData.passed ? 'Congratulations!' : 'Better luck next time!'}
+                    </h2>
+                  </>
+                )}
+                <p className="text-slate-600 mt-2">{resultData.message}</p>
+              </div>
+
+              {resultData.showResultImmediately !== false ? (
+                <div className="bg-slate-50 rounded-xl p-4 space-y-3">
+                  <div className="flex justify-between">
+                    <span className="text-slate-600">Your Score</span>
+                    <span className="font-bold text-slate-800">{resultData.totalScore}/{resultData.totalMarks}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-600">Percentage</span>
+                    <span className="font-bold text-slate-800">{resultData.percentage}%</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-600">Correct</span>
+                    <span className="font-bold text-green-600">{resultData.correctCount}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-600">Incorrect</span>
+                    <span className="font-bold text-red-600">{resultData.incorrectCount}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-600">Skipped</span>
+                    <span className="font-bold text-slate-600">{resultData.skippedCount}</span>
+                  </div>
+                </div>
+              ) : (
+                <div className="bg-slate-50 rounded-xl p-4 text-center text-slate-600">
+                  Detailed result is disabled for this exam by admin settings.
+                </div>
+              )}
+
+              <p className="text-sm text-slate-500 mt-3 text-center">Auto-logout in 5 seconds...</p>
+              <button
+                onClick={handleResultClose}
+                className="w-full py-3 rounded-xl bg-blue-600 text-white font-semibold hover:bg-blue-700"
+              >
+                Logout Now
+              </button>
+            </div>
+          </div>
+        )}
+        </>
+      );
+    }
+
+    function StudentResults() {
+      const [results, setResults] = useState([]);
+      useEffect(() => {
+        api.get("/results/student").then((res) => setResults(res.data));
+      }, []);
+
+      return (
+        <div className="space-y-6">
+          <div>
+            <h1 className="text-2xl font-bold text-slate-800">My Results</h1>
+            <p className="text-slate-500">Track your performance across attempts.</p>
+          </div>
+
+          <Table columns={[
+            { key: "exam", label: "Exam" },
+            { key: "score", label: "Score" },
+            { key: "percentage", label: "Percentage" },
+            { key: "status", label: "Status" },
+          ]} data={results.map((r) => ({
+            exam: r.exam?.title || "N/A",
+            score: `${r.totalScore}/${r.totalMarks}`,
+            percentage: r.percentage + "%",
+            status: r.passed ? "Pass" : "Fail",
+          }))} />
+        </div>
+      );
+    }
+
+    function AdminLayout() {
+      const { branding } = useBranding();
+      const { logout } = useAuth();
+      const navigate = useNavigate();
+      const location = useLocation();
+      const links = [
+        { to: "/admin", label: "Dashboard", exact: true },
+        { to: "/admin/students", label: "Students" },
+        { to: "/admin/questions", label: "Questions" },
+        { to: "/admin/exams", label: "Exams" },
+        { to: "/admin/courses", label: "Courses" },
+        { to: "/admin/results", label: "Results" },
+        { to: "/admin/settings", label: "Settings" },
+      ];
+
+      return (
+        <div className="min-h-screen flex bg-slate-100">
+          <aside className="w-64 bg-white border-r border-slate-200 hidden md:flex flex-col">
+            <div className="p-6 border-b border-slate-200">
+              <div className="flex items-center gap-3">
+                {branding.logoUrl ? (
+                  <img src={branding.logoUrl} alt="Logo" className="h-10 w-10 object-contain" />
+                ) : (
+                  <p className="text-xs text-blue-600 font-semibold uppercase tracking-[0.3em]">GCE</p>
+                )}
+                <div>
+                  <h2 className="text-xl font-bold text-slate-800">{branding.instituteName || "Admin Panel"}</h2>
+                  <p className="text-sm text-slate-500">Admin Panel</p>
+                </div>
+              </div>
+            </div>
+            <nav className="p-4 space-y-2 flex-1">
+              {links.map((link) => {
+                const active = location.pathname === link.to || location.pathname === link.to.replace(/\/$/, "");
+                return (
+                  <Link
+                    key={link.to}
+                    to={link.to}
+                    className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition ${active ? "bg-blue-50 text-blue-600" : "text-slate-600 hover:bg-slate-50"}`}
+                  >
+                    {link.label}
+                  </Link>
+                );
+              })}
+            </nav>
+            <button className="m-4 px-4 py-2 rounded-xl border border-slate-200 text-slate-600 font-semibold" onClick={logout}>
+              Logout
+            </button>
+          </aside>
+
+          <main className="flex-1 p-6">
+            <div className="md:hidden mb-4 flex justify-between items-center">
+              <h1 className="text-xl font-bold">Admin Panel</h1>
+              <button className="px-3 py-2 text-sm rounded-xl border border-slate-200" onClick={logout}>Logout</button>
+            </div>
+            <div className="space-y-6">
+              <Routes>
+                <Route index element={<AdminDashboard />} />
+                <Route path="students" element={<ManageStudents />} />
+                <Route path="questions" element={<ManageQuestions />} />
+                <Route path="exams" element={<ManageExams />} />
+                <Route path="courses" element={<ManageCourses />} />
+                <Route path="results" element={<ViewResults />} />
+                <Route path="settings" element={<Settings />} />
+              </Routes>
+            </div>
+          </main>
+        </div>
+      );
+    }
+
+    function StudentLayout() {
+      const { branding } = useBranding();
+      const { logout, user } = useAuth();
+      return (
+        <div className="min-h-screen bg-slate-100">
+          <header className="bg-white shadow-sm border-b border-slate-200">
+            <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
+              <div>
+                <div className="flex items-center gap-3">
+                  {branding.logoUrl && <img src={branding.logoUrl} alt="Logo" className="h-10 w-10 object-contain" />}
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.3em] text-blue-600 font-semibold">{branding.instituteName || "GCE"}</p>
+                    <h1 className="text-xl font-bold text-slate-800">Student Portal</h1>
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="text-right">
+                  <p className="text-sm font-semibold text-slate-700">{user?.name}</p>
+                  <p className="text-xs text-slate-500">{user?.studentId}</p>
+                </div>
+                <button onClick={logout} className="px-3 py-2 rounded-xl border border-slate-200 text-sm font-semibold">Logout</button>
+              </div>
+            </div>
+          </header>
+          <main className="max-w-6xl mx-auto px-6 py-6">
+            <Routes>
+              <Route index element={<StudentDashboard />} />
+              <Route path="exam/:id" element={<ExamPage />} />
+              <Route path="results" element={<StudentResults />} />
+            </Routes>
+          </main>
+        </div>
+      );
+    }
+
+    function App() {
+      return (
+        <HashRouter>
+          <Routes>
+            <Route path="/login" element={<Login />} />
+            <Route path="/admin/*" element={<ProtectedRoute role="admin"><AdminLayout /></ProtectedRoute>} />
+            <Route path="/student/*" element={<ProtectedRoute role="student"><StudentLayout /></ProtectedRoute>} />
+            <Route path="*" element={<Navigate to="/login" />} />
+          </Routes>
+        </HashRouter>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById("root")).render(
+      <BrandingProvider>
+        <NotificationProvider>
+          <AuthProvider>
+            <App />
+          </AuthProvider>
+        </NotificationProvider>
+      </BrandingProvider>
+    );
+  </script>
+</body>
+</html>
