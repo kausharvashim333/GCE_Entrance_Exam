@@ -2781,8 +2781,12 @@
         }
 
         const answeredQuestions = Object.entries(answers).filter(([_, selectedOption]) => selectedOption !== null);
-        if (!forceSubmit && answeredQuestions.length === 0) {
-          const confirmSubmit = confirm("You haven't answered any questions. Are you sure you want to submit?");
+        const totalQuestions = Object.keys(answers).length;
+        const attemptedCount = answeredQuestions.length;
+        const nonAttemptedCount = totalQuestions - attemptedCount;
+
+        if (!forceSubmit) {
+          const confirmSubmit = confirm(`Attempted Questions: ${attemptedCount}\nNon-Attempted Questions: ${nonAttemptedCount}\n\nAre you sure you want to submit?`);
           if (!confirmSubmit) return;
         }
 
