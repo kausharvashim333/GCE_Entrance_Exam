@@ -45,9 +45,9 @@ async function startServer() {
     try {
       await mongoose.connect(mongoUri);
       console.log("MongoDB connected (external)");
-    } catch (err) {
-      console.log("External MongoDB connection failed, falling back to local MongoDB...");
-      mongoUri = null;
+        } catch (err) {
+      console.error("MongoDB Atlas connection failed:", err.message);
+      process.exit(1);
     }
   }
 
