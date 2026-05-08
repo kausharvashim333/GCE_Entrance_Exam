@@ -7,7 +7,8 @@
   <style>
     body { background: #f1f5f9; font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
     .glass { backdrop-filter: blur(16px); background: rgba(255,255,255,0.9); }
-    .table-scroll { max-height: 400px; overflow: auto; }
+    .table-scroll { max-height: 400px; overflow: auto; -webkit-overflow-scrolling: touch; }
+    .table-scroll table { min-width: 720px; }
   </style>
   <script src="./vendor/tailwindcdn.js"></script>
   <script>
@@ -358,13 +359,13 @@
       };
 
       return (
-        <div className="min-h-screen flex items-center justify-center px-4">
-          <div className="glass p-8 rounded-3xl shadow-2xl max-w-md w-full space-y-6 border border-slate-200">
+        <div className="min-h-screen flex items-center justify-center px-3 sm:px-4 py-4">
+          <div className="glass p-5 sm:p-8 rounded-3xl shadow-2xl max-w-md w-full space-y-5 sm:space-y-6 border border-slate-200">
             <div className="text-center space-y-3">
-              {branding.logoUrl && <img src={branding.logoUrl} alt="Logo" className="h-20 w-auto mx-auto object-contain" />}
-              <p className="text-sm text-blue-600 font-semibold tracking-widest uppercase">{branding.loginSubtitle || "Genius Computer Education"}</p>
-              <h1 className="text-3xl font-bold text-slate-800">{branding.loginHeading || "Entrance Exam Portal"}</h1>
-              <p className="text-slate-500">{branding.loginTagline || "Admin & Student secure login"}</p>
+              {branding.logoUrl && <img src={branding.logoUrl} alt="Logo" className="h-16 sm:h-20 w-auto mx-auto object-contain" />}
+              <p className="text-xs sm:text-sm text-blue-600 font-semibold tracking-wide sm:tracking-widest uppercase">{branding.loginSubtitle || "Genius Computer Education"}</p>
+              <h1 className="text-2xl sm:text-3xl font-bold text-slate-800">{branding.loginHeading || "Entrance Exam Portal"}</h1>
+              <p className="text-sm sm:text-base text-slate-500">{branding.loginTagline || "Admin & Student secure login"}</p>
             </div>
 
             <div className="grid grid-cols-2 bg-slate-100 rounded-xl p-1">
@@ -2920,11 +2921,11 @@
             </div>
           )}
 
-          <div className="flex gap-6">
-            <div className="flex-1" style={{ userSelect: showInstructions ? 'auto' : 'none', WebkitUserSelect: showInstructions ? 'auto' : 'none' }}>
+          <div className="flex flex-col lg:flex-row gap-4 lg:gap-6">
+            <div className="flex-1 min-w-0" style={{ userSelect: showInstructions ? 'auto' : 'none', WebkitUserSelect: showInstructions ? 'auto' : 'none' }}>
               {exam.questions.length > 0 && (
                 <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
-                  <div className="flex justify-between items-center mb-4">
+                  <div className="flex flex-wrap justify-between items-center gap-2 mb-4">
                     <p className="text-slate-500 text-sm font-semibold">
                       Question {currentQuestion + 1} of {exam.questions.length}
                     </p>
@@ -2956,7 +2957,7 @@
                     ))}
                   </div>
                   
-                  <div className="flex justify-between mt-6">
+                  <div className="flex justify-between gap-2 mt-6">
                     <button
                       onClick={handlePrevious}
                       disabled={currentQuestion === 0}
@@ -2980,9 +2981,9 @@
               </button>
             </div>
 
-            <div className="w-64 bg-white rounded-2xl border border-slate-200 p-4 shadow-sm h-fit">
+            <div className="w-full lg:w-64 bg-white rounded-2xl border border-slate-200 p-4 shadow-sm h-fit">
               <h3 className="font-semibold text-slate-800 mb-3">Question Navigator</h3>
-              <div className="grid grid-cols-5 gap-2">
+              <div className="grid grid-cols-6 sm:grid-cols-7 lg:grid-cols-5 gap-2">
                 {exam.questions.map((q, idx) => (
                   <button
                     key={q.id}
@@ -3018,8 +3019,8 @@
         </div>
 
         {showResult && resultData && (
-          <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-50">
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-4">
+          <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-50 px-3">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-4 sm:p-6 space-y-4">
               <div className="text-center">
                 <p className="text-green-600 font-bold text-lg mb-2">Exam Submitted Successfully!</p>
                 {resultData.showResultImmediately !== false && (
@@ -3156,10 +3157,26 @@
             </button>
           </aside>
 
-          <main className="flex-1 p-6">
-            <div className="md:hidden mb-4 flex justify-between items-center">
+          <main className="flex-1 p-3 sm:p-4 md:p-6">
+            <div className="md:hidden mb-4 flex justify-between items-center gap-2">
               <h1 className="text-xl font-bold">Admin Panel</h1>
               <button className="px-3 py-2 text-sm rounded-xl border border-slate-200" onClick={logout}>Logout</button>
+            </div>
+            <div className="md:hidden mb-4 overflow-x-auto">
+              <div className="flex gap-2 min-w-max">
+                {links.map((link) => {
+                  const active = location.pathname === link.to || location.pathname === link.to.replace(/\/$/, "");
+                  return (
+                    <Link
+                      key={`mobile-${link.to}`}
+                      to={link.to}
+                      className={`px-3 py-2 rounded-xl text-sm font-semibold whitespace-nowrap transition ${active ? "bg-blue-50 text-blue-600" : "bg-white text-slate-600 border border-slate-200"}`}
+                    >
+                      {link.label}
+                    </Link>
+                  );
+                })}
+              </div>
             </div>
             <div className="space-y-6">
               <Routes>
@@ -3183,17 +3200,17 @@
       return (
         <div className="min-h-screen bg-slate-100">
           <header className="bg-white shadow-sm border-b border-slate-200">
-            <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
+            <div className="max-w-6xl mx-auto px-3 sm:px-4 md:px-6 py-3 sm:py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
               <div>
                 <div className="flex items-center gap-3">
-                  {branding.logoUrl && <img src={branding.logoUrl} alt="Logo" className="h-10 w-10 object-contain" />}
+                  {branding.logoUrl && <img src={branding.logoUrl} alt="Logo" className="h-8 w-8 sm:h-10 sm:w-10 object-contain" />}
                   <div>
-                    <p className="text-xs uppercase tracking-[0.3em] text-blue-600 font-semibold">{branding.instituteName || "GCE"}</p>
-                    <h1 className="text-xl font-bold text-slate-800">Student Portal</h1>
+                    <p className="text-xs uppercase tracking-[0.15em] sm:tracking-[0.3em] text-blue-600 font-semibold">{branding.instituteName || "GCE"}</p>
+                    <h1 className="text-lg sm:text-xl font-bold text-slate-800">Student Portal</h1>
                   </div>
                 </div>
               </div>
-              <div className="flex items-center gap-3">
+              <div className="flex items-center justify-between sm:justify-end gap-3 w-full sm:w-auto">
                 <div className="text-right">
                   <p className="text-sm font-semibold text-slate-700">{user?.name}</p>
                   <p className="text-xs text-slate-500">{user?.studentId}</p>
@@ -3202,7 +3219,7 @@
               </div>
             </div>
           </header>
-          <main className="max-w-6xl mx-auto px-6 py-6">
+          <main className="max-w-6xl mx-auto px-3 sm:px-4 md:px-6 py-4 sm:py-6">
             <Routes>
               <Route index element={<StudentDashboard />} />
               <Route path="exam/:id" element={<ExamPage />} />
