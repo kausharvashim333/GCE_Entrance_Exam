@@ -2421,13 +2421,27 @@
       const [form, setForm] = useState(branding);
       const [uploading, setUploading] = useState(false);
       const editorRef = useRef(null);
+      const isInitialized = useRef(false);
 
       useEffect(() => {
-        setForm(branding);
-      }, [branding]);
+        if (!isInitialized.current) {
+          setForm(branding);
+          isInitialized.current = true;
+        }
+      }, []);
+
+      const handleEditorBlur = () => {
+        if (editorRef.current) {
+          setForm({ ...form, resultInstructions: editorRef.current.innerHTML });
+        }
+      };
 
       const handleSaveAll = async (e) => {
         e.preventDefault();
+        // Sync editor content before saving
+        if (editorRef.current) {
+          setForm({ ...form, resultInstructions: editorRef.current.innerHTML });
+        }
         try {
           await updateBranding({
             instituteName: form.instituteName,
@@ -2606,7 +2620,7 @@
                 ref={editorRef}
                 contentEditable
                 suppressContentEditableWarning
-                onInput={(e) => setForm({ ...form, resultInstructions: e.target.innerHTML })}
+                onBlur={handleEditorBlur}
                 className="w-full px-4 py-3 min-h-[100px] focus:outline-none"
                 dangerouslySetInnerHTML={{ __html: form.resultInstructions || "" }}
               ></div>
