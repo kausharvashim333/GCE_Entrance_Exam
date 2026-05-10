@@ -2210,7 +2210,7 @@
         const logoUrl = escapeHtml(branding.logoUrl || "");
         const referenceNo = escapeHtml("GCE-" + new Date().toISOString().slice(0, 10).replace(/-/g, "") + "-" + String(result._id || "NA").slice(-6).toUpperCase());
         const principalName = escapeHtml(branding.principalName || "Principal");
-        const resultInstructions = escapeHtml(branding.resultInstructions || "");
+        const resultInstructions = branding.resultInstructions || "";
 
         const doc = popup.document;
         doc.open();
