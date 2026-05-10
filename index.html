@@ -9,6 +9,15 @@
     .glass { backdrop-filter: blur(16px); background: rgba(255,255,255,0.9); }
     .table-scroll { max-height: 400px; overflow: auto; -webkit-overflow-scrolling: touch; }
     .table-scroll table { min-width: 720px; }
+    .rich-editor ul { list-style-type: disc; margin-left: 20px; }
+    .rich-editor ol { list-style-type: decimal; margin-left: 20px; }
+    .rich-editor li { margin: 4px 0; }
+    .rich-editor p { margin: 8px 0; }
+    .rich-editor b, .rich-editor strong { font-weight: bold; }
+    .rich-editor i, .rich-editor em { font-style: italic; }
+    .rich-editor u { text-decoration: underline; }
+    .rich-editor sub { font-size: smaller; vertical-align: sub; }
+    .rich-editor sup { font-size: smaller; vertical-align: super; }
   </style>
   <script src="./vendor/tailwindcdn.js"></script>
   <script>
@@ -2621,7 +2630,8 @@
                 contentEditable
                 suppressContentEditableWarning
                 onBlur={handleEditorBlur}
-                className="w-full px-4 py-3 min-h-[100px] focus:outline-none"
+                className="w-full px-4 py-3 min-h-[100px] focus:outline-none rich-editor"
+                style={{ lineHeight: '1.6' }}
                 dangerouslySetInnerHTML={{ __html: form.resultInstructions || "" }}
               ></div>
             </div>
